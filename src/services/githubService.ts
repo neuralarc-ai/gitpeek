@@ -27,10 +27,39 @@ export type RepoData = {
   forks_count: number;
   open_issues_count: number;
   watchers_count: number;
+  created_at: string;
+  updated_at: string;
+  default_branch: string;
 };
 
 export type RepoLanguages = {
   [key: string]: number;
+};
+
+export type Contributor = {
+  login: string;
+  id: number;
+  avatar_url: string;
+  html_url: string;
+  contributions: number;
+  type: string;
+};
+
+export type CommitActivity = {
+  days: number[];
+  total: number;
+  week: number;
+};
+
+export type RepoStats = {
+  commitActivity: CommitActivity[];
+  codeFrequency: [number, number, number][];
+  participation: {
+    all: number[];
+    owner: number[];
+  };
+  punchCard: [number, number, number][];
+  branches: number;
 };
 
 // Fetch repository basic data
@@ -103,6 +132,97 @@ export const fetchRepoReadme = async (owner: string, repo: string): Promise<stri
   } catch (error) {
     console.error("Error fetching repo README:", error);
     toast.error("Failed to fetch repository README");
+    return null;
+  }
+};
+
+// Fetch repository contributors
+export const fetchRepoContributors = async (owner: string, repo: string): Promise<Contributor[] | null> => {
+  try {
+    const token = getApiKey('github');
+    const response = await fetch(`${API_BASE_URL}/repos/${owner}/${repo}/contributors`, {
+      headers: {
+        'Accept': 'application/vnd.github.v3+json',
+        'Authorization': token ? `token ${token}` : '',
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`GitHub API error: ${response.status}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching repo contributors:", error);
+    toast.error("Failed to fetch repository contributors");
+    return null;
+  }
+};
+
+// Fetch repository stats
+export const fetchRepoStats = async (owner: string, repo: string): Promise<RepoStats | null> => {
+  try {
+    const token = getApiKey('github');
+    const headers = {
+      'Accept': 'application/vnd.github.v3+json',
+      'Authorization': token ? `token ${token}` : '',
+    };
+
+    // Fetch commit activity
+    const commitActivityResponse = await fetch(
+      `${API_BASE_URL}/repos/${owner}/${repo}/stats/commit_activity`, 
+      { headers }
+    );
+    
+    // Fetch code frequency
+    const codeFrequencyResponse = await fetch(
+      `${API_BASE_URL}/repos/${owner}/${repo}/stats/code_frequency`, 
+      { headers }
+    );
+    
+    // Fetch participation
+    const participationResponse = await fetch(
+      `${API_BASE_URL}/repos/${owner}/${repo}/stats/participation`, 
+      { headers }
+    );
+    
+    // Fetch punch card
+    const punchCardResponse = await fetch(
+      `${API_BASE_URL}/repos/${owner}/${repo}/stats/punch_card`, 
+      { headers }
+    );
+    
+    // Fetch branches count
+    const branchesResponse = await fetch(
+      `${API_BASE_URL}/repos/${owner}/${repo}/branches?per_page=1`, 
+      { headers }
+    );
+    
+    if (!commitActivityResponse.ok || !codeFrequencyResponse.ok || 
+        !participationResponse.ok || !punchCardResponse.ok || !branchesResponse.ok) {
+      throw new Error(`GitHub API error`);
+    }
+    
+    const commitActivity = await commitActivityResponse.json();
+    const codeFrequency = await codeFrequencyResponse.json();
+    const participation = await participationResponse.json();
+    const punchCard = await punchCardResponse.json();
+    
+    // Get branches count from Link header
+    const linkHeader = branchesResponse.headers.get('Link') || '';
+    const lastPageMatch = linkHeader.match(/&page=(\d+)>; rel="last"/);
+    const branchesCount = lastPageMatch ? parseInt(lastPageMatch[1]) : 1;
+    
+    return {
+      commitActivity,
+      codeFrequency,
+      participation,
+      punchCard,
+      branches: branchesCount
+    };
+  } catch (error) {
+    console.error("Error fetching repo stats:", error);
+    toast.error("Failed to fetch repository statistics");
     return null;
   }
 };

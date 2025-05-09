@@ -5,9 +5,11 @@ import { FileExplorer } from "./FileExplorer";
 import { MindmapVisualization } from "./MindmapVisualization";
 import { OverviewTab } from "./documentation/OverviewTab";
 import { CodeTab } from "./documentation/CodeTab";
-import { TechStackTab } from "./documentation/TechStackTab";
 import { ReadmeTab } from "./documentation/ReadmeTab";
-import { fetchRepoData, fetchRepoLanguages, fetchRepoReadme } from "@/services/githubService";
+import { ContributorsTab } from "./documentation/ContributorsTab";
+import { InstallationTab } from "./documentation/InstallationTab";
+import { StatisticsTab } from "./documentation/StatisticsTab";
+import { fetchRepoData, fetchRepoLanguages, fetchRepoReadme, fetchRepoContributors, fetchRepoStats } from "@/services/githubService";
 import { analyzeRepository } from "@/services/geminiService";
 import { toast } from "@/components/ui/sonner";
 
@@ -32,7 +34,14 @@ export function TabNavigation({
   const [repoData, setRepoData] = useState(null);
   const [languages, setLanguages] = useState(null);
   const [readme, setReadme] = useState(null);
-  const [analysis, setAnalysis] = useState({ overview: null, architecture: null, techStack: null });
+  const [contributors, setContributors] = useState(null);
+  const [stats, setStats] = useState(null);
+  const [analysis, setAnalysis] = useState({ 
+    overview: null, 
+    architecture: null, 
+    installation: null,
+    codeStructure: null
+  });
   
   const handleTabChange = (value: string) => {
     if (onChangeTab) onChangeTab(value);
@@ -55,9 +64,17 @@ export function TabNavigation({
         const readmeResponse = await fetchRepoReadme(owner, repo);
         setReadme(readmeResponse);
         
+        // Fetch repository contributors
+        const contributorsResponse = await fetchRepoContributors(owner, repo);
+        setContributors(contributorsResponse);
+        
+        // Fetch repository stats
+        const statsResponse = await fetchRepoStats(owner, repo);
+        setStats(statsResponse);
+        
         // Analyze repository using Gemini API
         if (repoDataResponse && languagesResponse) {
-          const analysisResponse = await analyzeRepository(repoDataResponse, languagesResponse);
+          const analysisResponse = await analyzeRepository(repoDataResponse, languagesResponse, contributorsResponse);
           if (analysisResponse) {
             setAnalysis(analysisResponse);
           }
@@ -111,7 +128,9 @@ export function TabNavigation({
           <TabsList className="w-full max-w-4xl overflow-x-auto hide-scrollbar">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="code">Code</TabsTrigger>
-            <TabsTrigger value="techstack">Tech Stack</TabsTrigger>
+            <TabsTrigger value="contributors">Contributors</TabsTrigger>
+            <TabsTrigger value="installation">Installation</TabsTrigger>
+            <TabsTrigger value="statistics">Statistics</TabsTrigger>
             <TabsTrigger value="readme">README</TabsTrigger>
           </TabsList>
           
@@ -119,6 +138,9 @@ export function TabNavigation({
             <TabsContent value="overview">
               <OverviewTab 
                 overview={analysis.overview}
+                repoData={repoData}
+                languages={languages}
+                stats={stats}
                 isLoading={isLoading}
               />
             </TabsContent>
@@ -126,14 +148,31 @@ export function TabNavigation({
             <TabsContent value="code">
               <CodeTab 
                 architecture={analysis.architecture}
+                codeStructure={analysis.codeStructure}
                 isLoading={isLoading}
               />
             </TabsContent>
             
-            <TabsContent value="techstack">
-              <TechStackTab 
-                techStack={analysis.techStack}
+            <TabsContent value="contributors">
+              <ContributorsTab 
+                contributors={contributors}
+                isLoading={isLoading}
+              />
+            </TabsContent>
+            
+            <TabsContent value="installation">
+              <InstallationTab 
+                installation={analysis.installation}
+                readme={readme}
+                isLoading={isLoading}
+              />
+            </TabsContent>
+            
+            <TabsContent value="statistics">
+              <StatisticsTab 
+                stats={stats}
                 languages={languages}
+                repoData={repoData}
                 isLoading={isLoading}
               />
             </TabsContent>
