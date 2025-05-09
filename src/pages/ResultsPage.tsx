@@ -6,8 +6,8 @@ import { TabNavigation } from "@/components/TabNavigation";
 
 const ResultsPage = () => {
   const [searchParams] = useSearchParams();
-  const owner = searchParams.get("owner") || "example-owner";
-  const repo = searchParams.get("repo") || "example-repo";
+  const owner = searchParams.get("owner") || "";
+  const repo = searchParams.get("repo") || "";
   const repoUrl = `https://github.com/${owner}/${repo}`;
   
   return (
@@ -25,7 +25,7 @@ const ResultsPage = () => {
           repoUrl={repoUrl} 
         />
         
-        <TabNavigation />
+        <TabNavigation owner={owner} repo={repo} />
       </main>
       
       <footer className="border-t border-gitpeek-border py-4">

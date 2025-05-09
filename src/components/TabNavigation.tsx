@@ -1,20 +1,77 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FileExplorer } from "./FileExplorer";
+import { MindmapVisualization } from "./MindmapVisualization";
+import { OverviewTab } from "./documentation/OverviewTab";
+import { CodeTab } from "./documentation/CodeTab";
+import { TechStackTab } from "./documentation/TechStackTab";
+import { ReadmeTab } from "./documentation/ReadmeTab";
+import { fetchRepoData, fetchRepoLanguages, fetchRepoReadme } from "@/services/githubService";
+import { analyzeRepository } from "@/services/geminiService";
+import { toast } from "@/components/ui/sonner";
 
 interface TabNavigationProps {
+  owner: string;
+  repo: string;
   activeTab?: string;
   onChangeTab?: (tab: string) => void;
 }
 
-export function TabNavigation({ activeTab = "visualization", onChangeTab }: TabNavigationProps) {
+export function TabNavigation({ 
+  owner, 
+  repo, 
+  activeTab = "visualization", 
+  onChangeTab 
+}: TabNavigationProps) {
   // Inside tab state for the documentation sub-tabs
   const [docTab, setDocTab] = useState("overview");
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // Repository data states
+  const [repoData, setRepoData] = useState(null);
+  const [languages, setLanguages] = useState(null);
+  const [readme, setReadme] = useState(null);
+  const [analysis, setAnalysis] = useState({ overview: null, architecture: null, techStack: null });
   
   const handleTabChange = (value: string) => {
     if (onChangeTab) onChangeTab(value);
   };
+
+  // Fetch repository data
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        // Fetch basic repository information
+        const repoDataResponse = await fetchRepoData(owner, repo);
+        setRepoData(repoDataResponse);
+        
+        // Fetch repository languages
+        const languagesResponse = await fetchRepoLanguages(owner, repo);
+        setLanguages(languagesResponse);
+        
+        // Fetch repository README
+        const readmeResponse = await fetchRepoReadme(owner, repo);
+        setReadme(readmeResponse);
+        
+        // Analyze repository using Gemini API
+        if (repoDataResponse && languagesResponse) {
+          const analysisResponse = await analyzeRepository(repoDataResponse, languagesResponse);
+          if (analysisResponse) {
+            setAnalysis(analysisResponse);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching repository data:", error);
+        toast.error("Failed to load repository data");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchData();
+  }, [owner, repo]);
 
   return (
     <Tabs 
@@ -31,14 +88,20 @@ export function TabNavigation({ activeTab = "visualization", onChangeTab }: TabN
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
           <div className="md:col-span-2 bg-gitpeek-card rounded-lg border border-gitpeek-border p-4 h-[500px]">
             <h3 className="text-lg font-medium mb-4">Repository Structure Visualization</h3>
-            <div className="flex items-center justify-center h-[90%] bg-gitpeek-dark/50 rounded-lg">
-              <p className="text-muted-foreground text-sm">Interactive mindmap visualization will appear here</p>
+            <div className="h-[90%]">
+              <MindmapVisualization 
+                repoData={repoData}
+                languages={languages}
+                isLoading={isLoading} 
+              />
             </div>
           </div>
           
           <div className="bg-gitpeek-card rounded-lg border border-gitpeek-border p-4 h-[500px]">
             <h3 className="text-lg font-medium mb-4">File Explorer</h3>
-            <FileExplorer />
+            <div className="h-[90%]">
+              <FileExplorer owner={owner} repo={repo} />
+            </div>
           </div>
         </div>
       </TabsContent>
@@ -48,53 +111,38 @@ export function TabNavigation({ activeTab = "visualization", onChangeTab }: TabN
           <TabsList className="w-full max-w-4xl overflow-x-auto hide-scrollbar">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="code">Code</TabsTrigger>
-            <TabsTrigger value="contributions">Contributions</TabsTrigger>
-            <TabsTrigger value="installation">Installation</TabsTrigger>
-            <TabsTrigger value="statistics">Statistics</TabsTrigger>
+            <TabsTrigger value="techstack">Tech Stack</TabsTrigger>
             <TabsTrigger value="readme">README</TabsTrigger>
           </TabsList>
           
           <div className="mt-4 bg-gitpeek-card rounded-lg border border-gitpeek-border p-6 min-h-[500px]">
-            <TabsContent value="overview" className="space-y-4">
-              <h2 className="text-xl font-bold">Repository Overview</h2>
-              <p className="text-muted-foreground">
-                This section provides a high-level overview of the repository, including its purpose, main features, and architecture.
-              </p>
+            <TabsContent value="overview">
+              <OverviewTab 
+                overview={analysis.overview}
+                isLoading={isLoading}
+              />
             </TabsContent>
             
             <TabsContent value="code">
-              <h2 className="text-xl font-bold">Code Analysis</h2>
-              <p className="text-muted-foreground mt-2">
-                Detailed code analysis will appear here, including code quality metrics, patterns, and potential improvements.
-              </p>
+              <CodeTab 
+                architecture={analysis.architecture}
+                isLoading={isLoading}
+              />
             </TabsContent>
             
-            <TabsContent value="contributions">
-              <h2 className="text-xl font-bold">Contributions Analysis</h2>
-              <p className="text-muted-foreground mt-2">
-                Analysis of contribution patterns, commit frequency, and contributor statistics will appear here.
-              </p>
-            </TabsContent>
-            
-            <TabsContent value="installation">
-              <h2 className="text-xl font-bold">Installation Guide</h2>
-              <p className="text-muted-foreground mt-2">
-                Extracted installation instructions and setup guide will appear here.
-              </p>
-            </TabsContent>
-            
-            <TabsContent value="statistics">
-              <h2 className="text-xl font-bold">Repository Statistics</h2>
-              <p className="text-muted-foreground mt-2">
-                Comprehensive statistics about the repository will appear here, including code size, commit frequency, and more.
-              </p>
+            <TabsContent value="techstack">
+              <TechStackTab 
+                techStack={analysis.techStack}
+                languages={languages}
+                isLoading={isLoading}
+              />
             </TabsContent>
             
             <TabsContent value="readme">
-              <h2 className="text-xl font-bold">README Content</h2>
-              <p className="text-muted-foreground mt-2">
-                The full README.md content from the repository will be rendered here.
-              </p>
+              <ReadmeTab 
+                readme={readme}
+                isLoading={isLoading}
+              />
             </TabsContent>
           </div>
         </Tabs>

@@ -1,68 +1,26 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ChevronRight, ChevronDown, FileIcon, FolderIcon } from "lucide-react";
+import { GitHubFile, buildFileTree } from "@/services/githubService";
+import { Card } from "@/components/ui/card";
 
-interface TreeNode {
-  id: string;
-  name: string;
-  type: 'file' | 'folder';
-  children?: TreeNode[];
-  expanded?: boolean;
+interface FileExplorerProps {
+  owner: string;
+  repo: string;
 }
 
-// This is mock data for now, would be replaced with actual repo data
-const mockFileTree: TreeNode[] = [
-  {
-    id: "1",
-    name: "src",
-    type: "folder",
-    expanded: true,
-    children: [
-      {
-        id: "1-1",
-        name: "components",
-        type: "folder",
-        children: [
-          { id: "1-1-1", name: "Button.tsx", type: "file" },
-          { id: "1-1-2", name: "Card.tsx", type: "file" },
-          { id: "1-1-3", name: "Modal.tsx", type: "file" },
-        ]
-      },
-      {
-        id: "1-2",
-        name: "hooks",
-        type: "folder",
-        children: [
-          { id: "1-2-1", name: "useAuth.ts", type: "file" },
-          { id: "1-2-2", name: "useFetch.ts", type: "file" },
-        ]
-      },
-      { id: "1-3", name: "App.tsx", type: "file" },
-      { id: "1-4", name: "index.tsx", type: "file" },
-    ]
-  },
-  {
-    id: "2",
-    name: "public",
-    type: "folder",
-    children: [
-      { id: "2-1", name: "favicon.ico", type: "file" },
-      { id: "2-2", name: "index.html", type: "file" },
-    ]
-  },
-  { id: "3", name: "package.json", type: "file" },
-  { id: "4", name: "tsconfig.json", type: "file" },
-  { id: "5", name: "README.md", type: "file" },
-];
-
-interface FileTreeNodeProps {
-  node: TreeNode;
+interface TreeNodeProps {
+  node: GitHubFile;
   level: number;
-  onToggle: (id: string) => void;
+  onToggle: (path: string) => void;
+  expandedPaths: Set<string>;
 }
 
-const FileTreeNode = ({ node, level, onToggle }: FileTreeNodeProps) => {
-  const isFolder = node.type === 'folder';
+const FileTreeNode = ({ node, level, onToggle, expandedPaths }: TreeNodeProps) => {
+  const [isLoading, setIsLoading] = useState(false);
+  const [children, setChildren] = useState<GitHubFile[]>([]);
+  const isFolder = node.type === 'dir';
+  const isExpanded = expandedPaths.has(node.path);
   
   return (
     <div>
@@ -72,10 +30,10 @@ const FileTreeNode = ({ node, level, onToggle }: FileTreeNodeProps) => {
           ${level === 0 ? 'mt-1' : ''}
         `}
         style={{ paddingLeft: `${level * 12 + 4}px` }}
-        onClick={() => isFolder && onToggle(node.id)}
+        onClick={() => isFolder && onToggle(node.path)}
       >
         {isFolder ? (
-          node.expanded ? (
+          isExpanded ? (
             <ChevronDown className="h-4 w-4 text-muted-foreground mr-1" />
           ) : (
             <ChevronRight className="h-4 w-4 text-muted-foreground mr-1" />
@@ -95,48 +53,89 @@ const FileTreeNode = ({ node, level, onToggle }: FileTreeNodeProps) => {
         </span>
       </div>
       
-      {isFolder && node.expanded && node.children?.map((child) => (
-        <FileTreeNode 
-          key={child.id} 
-          node={child} 
-          level={level + 1}
-          onToggle={onToggle}
-        />
-      ))}
+      {isFolder && isExpanded && (
+        <div>
+          {isLoading ? (
+            <div className="text-sm text-muted-foreground pl-10 py-2">
+              Loading...
+            </div>
+          ) : (
+            <>
+              {children.map((child) => (
+                <FileTreeNode 
+                  key={child.path} 
+                  node={child} 
+                  level={level + 1}
+                  onToggle={onToggle}
+                  expandedPaths={expandedPaths}
+                />
+              ))}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 };
 
-export function FileExplorer() {
-  const [treeData, setTreeData] = useState<TreeNode[]>(mockFileTree);
+export function FileExplorer({ owner, repo }: FileExplorerProps) {
+  const [files, setFiles] = useState<GitHubFile[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
   
-  const handleToggle = (id: string) => {
-    const toggleNode = (nodes: TreeNode[]): TreeNode[] =>
-      nodes.map(node => {
-        if (node.id === id) {
-          return { ...node, expanded: !node.expanded };
-        }
-        if (node.children) {
-          return { ...node, children: toggleNode(node.children) };
-        }
-        return node;
-      });
+  // Load root files when component mounts
+  useEffect(() => {
+    const loadFiles = async () => {
+      setIsLoading(true);
+      const rootFiles = await buildFileTree(owner, repo);
+      setFiles(rootFiles);
+      setIsLoading(false);
+    };
     
-    setTreeData(toggleNode(treeData));
+    loadFiles();
+  }, [owner, repo]);
+  
+  const handleToggle = async (path: string) => {
+    const newExpandedPaths = new Set(expandedPaths);
+    
+    if (newExpandedPaths.has(path)) {
+      newExpandedPaths.delete(path);
+    } else {
+      newExpandedPaths.add(path);
+    }
+    
+    setExpandedPaths(newExpandedPaths);
   };
   
+  if (isLoading) {
+    return (
+      <div className="p-4 text-center">
+        <p className="text-muted-foreground">Loading repository files...</p>
+      </div>
+    );
+  }
+  
+  if (files.length === 0) {
+    return (
+      <div className="p-4 text-center">
+        <p className="text-muted-foreground">No files found in this repository</p>
+      </div>
+    );
+  }
+  
   return (
-    <div className="w-full h-full overflow-y-auto hide-scrollbar p-2">
+    <Card className="w-full h-full overflow-y-auto hide-scrollbar p-2">
       <div className="font-jetbrains">
-        {treeData.map(node => (
+        {files.map(node => (
           <FileTreeNode 
-            key={node.id} 
+            key={node.path} 
             node={node} 
             level={0}
             onToggle={handleToggle}
+            expandedPaths={expandedPaths}
           />
         ))}
       </div>
-    </div>
+    </Card>
   );
 }

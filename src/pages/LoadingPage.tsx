@@ -5,6 +5,7 @@ import { Logo } from "@/components/ui/logo";
 import { AgentChat } from "@/components/AgentChat";
 import { hasApiKey } from "@/utils/apiKeys";
 import { toast } from "@/components/ui/sonner";
+import { fetchRepoData } from "@/services/githubService";
 
 const LoadingPage = () => {
   const navigate = useNavigate();
@@ -12,32 +13,55 @@ const LoadingPage = () => {
   const owner = searchParams.get("owner");
   const repo = searchParams.get("repo");
   const [analysisTimer, setAnalysisTimer] = useState<number | null>(null);
+  const [isVerifying, setIsVerifying] = useState(true);
   
   useEffect(() => {
-    // Check if API keys are available
-    const hasGithubKey = hasApiKey('github');
-    const hasGeminiKey = hasApiKey('gemini');
-    
-    if (!hasGithubKey || !hasGeminiKey) {
-      toast.error("API keys are required for repository analysis", {
-        description: "Please add your GitHub and Gemini API keys in settings"
-      });
-      navigate("/");
-      return;
-    }
-    
-    // Set a timer to navigate to results page after analysis
-    // This gives enough time for the agent chat to show a conversation
-    // In a real app, you'd navigate after the actual API analysis is complete
-    const timer = window.setTimeout(() => {
-      if (owner && repo) {
-        navigate(`/results?owner=${owner}&repo=${repo}`);
-      } else {
+    const verifyRepository = async () => {
+      // Check if API keys are available
+      const hasGithubKey = hasApiKey('github');
+      const hasGeminiKey = hasApiKey('gemini');
+      
+      if (!hasGithubKey || !hasGeminiKey) {
+        toast.error("API keys are required for repository analysis", {
+          description: "Please add your GitHub and Gemini API keys in settings"
+        });
         navigate("/");
+        return;
       }
-    }, 20000); // Increased to 20 seconds to allow for real API calls
+      
+      if (!owner || !repo) {
+        navigate("/");
+        return;
+      }
+      
+      // Verify that the repository exists
+      setIsVerifying(true);
+      try {
+        const repoData = await fetchRepoData(owner, repo);
+        if (!repoData) {
+          toast.error("Failed to access repository", {
+            description: "Please check if the repository exists and is public"
+          });
+          navigate("/");
+          return;
+        }
+        
+        // Set a timer to navigate to results page after analysis
+        const timer = window.setTimeout(() => {
+          navigate(`/results?owner=${owner}&repo=${repo}`);
+        }, 10000); // Allow enough time for the agents to show conversation
+        
+        setAnalysisTimer(timer);
+      } catch (error) {
+        console.error("Error verifying repository:", error);
+        toast.error("Failed to access repository");
+        navigate("/");
+      } finally {
+        setIsVerifying(false);
+      }
+    };
     
-    setAnalysisTimer(timer);
+    verifyRepository();
     
     return () => {
       if (analysisTimer) {
@@ -45,10 +69,13 @@ const LoadingPage = () => {
       }
     };
   }, [navigate, owner, repo]);
-  
-  if (!owner || !repo) {
-    navigate("/");
-    return null;
+
+  if (isVerifying) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gitpeek-blue"></div>
+      </div>
+    );
   }
 
   return (
