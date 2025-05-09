@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartLegendContent, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { RepoData, RepoLanguages, RepoStats } from "@/services/githubService";
@@ -67,17 +66,25 @@ export function OverviewTab({ overview, repoData, languages, stats, isLoading }:
   
   // Recent activity data (simulated from available data)
   const getRecentActivityData = () => {
-    if (!stats || !stats.commitActivity || stats.commitActivity.length === 0) {
-      return Array(7).fill(0).map((_, i) => ({ 
-        day: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][i], 
-        commits: 0 
-      }));
+    if (
+      !stats ||
+      !stats.commitActivity ||
+      stats.commitActivity.length === 0 ||
+      !stats.commitActivity[stats.commitActivity.length - 1] ||
+      !Array.isArray(stats.commitActivity[stats.commitActivity.length - 1].days)
+    ) {
+      return Array(7)
+        .fill(0)
+        .map((_, i) => ({
+          day: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][i],
+          commits: 0,
+        }));
     }
-    
+
     const latestWeek = stats.commitActivity[stats.commitActivity.length - 1];
     return latestWeek.days.map((commits, i) => ({
       day: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][i],
-      commits
+      commits,
     }));
   };
   

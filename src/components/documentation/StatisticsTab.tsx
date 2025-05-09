@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartLegendContent, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Progress } from "@/components/ui/progress";
@@ -59,7 +58,7 @@ export function StatisticsTab({ stats, languages, repoData, isLoading }: Statist
   
   // Prepare commit activity data for the chart
   const prepareCommitActivityData = () => {
-    if (!stats?.commitActivity) return [];
+    if (!Array.isArray(stats?.commitActivity)) return [];
     
     return stats.commitActivity
       .slice(-12) // Last 12 weeks
