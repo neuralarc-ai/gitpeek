@@ -4,6 +4,8 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Github } from "lucide-react";
+import { toast } from "@/components/ui/sonner";
+import { hasApiKey } from "@/utils/apiKeys";
 
 export function RepoInput() {
   const [repoUrl, setRepoUrl] = useState("");
@@ -21,6 +23,25 @@ export function RepoInput() {
     
     if (!validateGithubUrl(repoUrl)) {
       setIsError(true);
+      return;
+    }
+    
+    // Check if API keys are set
+    const hasGithubKey = hasApiKey('github');
+    const hasGeminiKey = hasApiKey('gemini');
+    
+    if (!hasGithubKey || !hasGeminiKey) {
+      toast.error("API keys are required", {
+        description: "Please add your GitHub and Gemini API keys in the settings",
+        action: {
+          label: "Settings",
+          onClick: () => {
+            // This would trigger settings dialog, but needs component refactoring
+            // For now we'll just alert the user
+            alert("Please click the settings icon in the top-right corner to add your API keys");
+          }
+        }
+      });
       return;
     }
     
