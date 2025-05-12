@@ -1,4 +1,3 @@
-
 // API key management utilities
 
 // Define key types
@@ -11,7 +10,14 @@ export const saveApiKey = (type: ApiKeyType, key: string): void => {
 
 // Get API key from localStorage
 export const getApiKey = (type: ApiKeyType): string | null => {
-  return localStorage.getItem(`gitpeek_${type}_key`);
+  switch (type) {
+    case 'github':
+      return import.meta.env.VITE_GITHUB_API_KEY || null;
+    case 'gemini':
+      return import.meta.env.VITE_GEMINI_API_KEY || null;
+    default:
+      return null;
+  }
 };
 
 // Check if API key exists

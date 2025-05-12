@@ -1,4 +1,3 @@
-
 import { toast } from "@/components/ui/sonner";
 import { getApiKey } from "@/utils/apiKeys";
 
@@ -273,8 +272,13 @@ export const fetchRepoContents = async (owner: string, repo: string, path: strin
   }
 };
 
-// Build a tree structure from flat file list
-export const buildFileTree = async (owner: string, repo: string): Promise<GitHubFile[]> => {
-  const rootFiles = await fetchRepoContents(owner, repo);
-  return rootFiles;
+// Build a tree structure from flat file list (recursive)
+export const buildFileTree = async (owner: string, repo: string, path: string = ""): Promise<GitHubFile[]> => {
+  const files = await fetchRepoContents(owner, repo, path);
+  for (const file of files) {
+    if (file.type === 'dir') {
+      file.children = await buildFileTree(owner, repo, file.path);
+    }
+  }
+  return files;
 };

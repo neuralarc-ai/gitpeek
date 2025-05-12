@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FileExplorer } from "./FileExplorer";
@@ -107,9 +106,8 @@ export function TabNavigation({
             <h3 className="text-lg font-medium mb-4">Repository Structure Visualization</h3>
             <div className="h-[90%]">
               <MindmapVisualization 
-                repoData={repoData}
-                languages={languages}
-                isLoading={isLoading} 
+                owner={owner}
+                repo={repo}
               />
             </div>
           </div>

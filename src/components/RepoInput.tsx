@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -10,6 +9,8 @@ import { hasApiKey } from "@/utils/apiKeys";
 export function RepoInput() {
   const [repoUrl, setRepoUrl] = useState("");
   const [isError, setIsError] = useState(false);
+  const [isValid, setIsValid] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
   const navigate = useNavigate();
 
   const validateGithubUrl = (url: string) => {
@@ -18,11 +19,26 @@ export function RepoInput() {
     return githubUrlPattern.test(url);
   };
 
+  const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newUrl = e.target.value;
+    setRepoUrl(newUrl);
+    setIsValid(validateGithubUrl(newUrl));
+    if (isError) setIsError(false);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!repoUrl.trim()) {
+      setIsError(true);
+      return;
+    }
+    
     if (!validateGithubUrl(repoUrl)) {
       setIsError(true);
+      toast.error("Invalid GitHub URL", {
+        description: "Please enter a valid GitHub repository URL (e.g., https://github.com/username/repo)"
+      });
       return;
     }
     
@@ -58,16 +74,19 @@ export function RepoInput() {
     <form onSubmit={handleSubmit} className="w-full max-w-xl">
       <div className="flex flex-col space-y-4">
         <div className="relative">
-          <Github className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-5 w-5" />
+          <Github 
+            className={`absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 transition-colors duration-200
+              ${isValid ? 'text-green-500' : 'text-muted-foreground'}`} 
+          />
           <Input
             value={repoUrl}
-            onChange={(e) => {
-              setRepoUrl(e.target.value);
-              if (isError) setIsError(false);
-            }}
-            placeholder="Paste GitHub Repository URL"
-            className={`pl-10 py-6 bg-secondary text-foreground placeholder:text-muted-foreground 
-              ${isError ? 'border-destructive' : 'border-secondary'}`}
+            onChange={handleUrlChange}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
+            placeholder="Paste GitHub Repository URL (e.g., https://github.com/username/repo)"
+            className={`pl-10 py-6 bg-secondary text-foreground transition-all duration-200
+              ${isError ? 'border-destructive' : 'border-secondary'}
+              ${isFocused ? 'placeholder:opacity-20' : 'placeholder:opacity-100'}`}
           />
         </div>
         

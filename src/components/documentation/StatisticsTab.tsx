@@ -2,7 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ChartContainer, ChartLegendContent, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Progress } from "@/components/ui/progress";
 import { RepoData, RepoLanguages, RepoStats } from "@/services/githubService";
-import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend, LineChart, Line, PieChart, Pie, Cell } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend, LineChart, Line, PieChart, Pie, Cell, Area, AreaChart, CartesianGrid } from "recharts";
 import { CalendarDays, GitBranch, GitPullRequest, Star } from "lucide-react";
 
 interface StatisticsTabProps {
@@ -59,12 +59,11 @@ export function StatisticsTab({ stats, languages, repoData, isLoading }: Statist
   // Prepare commit activity data for the chart
   const prepareCommitActivityData = () => {
     if (!Array.isArray(stats?.commitActivity)) return [];
-    
     return stats.commitActivity
       .slice(-12) // Last 12 weeks
       .map((week, index) => ({
         week: `Week ${index + 1}`,
-        commits: week.total
+        commits: week.total || 0
       }));
   };
   
@@ -72,13 +71,21 @@ export function StatisticsTab({ stats, languages, repoData, isLoading }: Statist
   
   // Calculate code addition/deletion statistics
   const calculateCodeChanges = () => {
-    if (!stats?.codeFrequency) return { additions: 0, deletions: 0 };
+    if (!stats?.codeFrequency || !Array.isArray(stats.codeFrequency)) {
+      return { additions: 0, deletions: 0 };
+    }
     
     const totals = stats.codeFrequency.reduce(
-      (acc, [_, add, remove]) => ({ 
-        additions: acc.additions + add, 
-        deletions: acc.deletions + Math.abs(remove) 
-      }), 
+      (acc, week) => {
+        if (Array.isArray(week) && week.length >= 3) {
+          const [_, add, remove] = week;
+          return { 
+            additions: acc.additions + (add || 0), 
+            deletions: acc.deletions + Math.abs(remove || 0) 
+          };
+        }
+        return acc;
+      }, 
       { additions: 0, deletions: 0 }
     );
     
@@ -131,51 +138,32 @@ export function StatisticsTab({ stats, languages, repoData, isLoading }: Statist
             <CardDescription>Breakdown of programming languages used</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[200px]">
-              <ChartContainer
-                config={
-                  Object.fromEntries(
-                    languageData.slice(0, 8).map((lang, i) => [
-                      lang.name,
-                      { color: COLORS[i % COLORS.length] }
-                    ])
-                  )
-                }
-              >
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={languageData.slice(0, 8)}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={40}
-                      outerRadius={80}
-                      paddingAngle={2}
-                      dataKey="value"
-                    >
-                      {languageData.slice(0, 8).map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      content={({ active, payload }) => {
-                        if (active && payload && payload.length) {
-                          const data = payload[0].payload;
-                          return (
-                            <div className="rounded-lg border bg-background p-2 shadow-md">
-                              <div className="font-medium">{data.name}</div>
-                              <div className="text-xs text-muted-foreground">{data.percentage}%</div>
-                            </div>
-                          );
-                        }
-                        return null;
-                      }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </ChartContainer>
+            <div className="h-[160px] -mx-2">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart
+                  data={languageData}
+                  margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                >
+                  <defs>
+                    <linearGradient id="languageAreaGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.7} />
+                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.2} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey="name" stroke="#aaa" />
+                  <YAxis stroke="#aaa" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#444" />
+                  <Tooltip />
+                  <Area
+                    type="monotone"
+                    dataKey="value"
+                    stroke="#3b82f6"
+                    fillOpacity={1}
+                    fill="url(#languageAreaGradient)"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
             </div>
-            
             <div className="space-y-2 mt-4">
               {languageData.slice(0, 5).map((lang, i) => (
                 <div key={lang.name} className="space-y-1">
@@ -197,48 +185,28 @@ export function StatisticsTab({ stats, languages, repoData, isLoading }: Statist
             <CardDescription>Weekly commit frequency over time</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px]">
-              <ChartContainer
-                config={{
-                  commits: {
-                    label: "Commits",
-                    theme: {
-                      light: "#3b82f6",
-                      dark: "#60a5fa",
-                    },
-                  },
-                }}
-              >
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={commitActivityData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
-                    <XAxis dataKey="week" axisLine={false} tickLine={false} />
-                    <YAxis axisLine={false} tickLine={false} />
-                    <Tooltip
-                      content={({ active, payload }) => {
-                        if (active && payload && payload.length) {
-                          return (
-                            <ChartTooltipContent
-                              payload={payload as any}
-                              indicator="line"
-                              labelKey="week"
-                            />
-                          );
-                        }
-                        return null;
-                      }}
-                    />
-                    <Line 
-                      type="monotone" 
-                      dataKey="commits" 
-                      name="commits" 
-                      stroke="#3b82f6" 
-                      strokeWidth={2}
-                      dot={false}
-                      activeDot={{ r: 6 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </ChartContainer>
+            <div className="h-[160px] -mx-2">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={commitActivityData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="commitActivityGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8} />
+                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey="week" stroke="#aaa" />
+                  <YAxis stroke="#aaa" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#444" />
+                  <Tooltip />
+                  <Area
+                    type="monotone"
+                    dataKey="commits"
+                    stroke="#3b82f6"
+                    fillOpacity={1}
+                    fill="url(#commitActivityGradient)"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
             </div>
           </CardContent>
         </Card>

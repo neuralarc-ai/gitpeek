@@ -1,4 +1,3 @@
-
 import { getApiKey } from "@/utils/apiKeys";
 import { toast } from "@/components/ui/sonner";
 import { RepoData, RepoLanguages, Contributor } from "./githubService";
@@ -9,6 +8,17 @@ interface AnalysisResult {
   installation: string;
   codeStructure: string;
 }
+
+export const getGeminiHeaders = () => {
+  const geminiKey = getApiKey('gemini');
+  if (!geminiKey) {
+    throw new Error("Gemini API key is missing");
+  }
+  return {
+    'Content-Type': 'application/json',
+    'x-goog-api-key': geminiKey
+  };
+};
 
 export const analyzeRepository = async (
   repoData: RepoData, 

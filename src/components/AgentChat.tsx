@@ -1,8 +1,8 @@
-
 import { useEffect, useRef, useState } from "react";
 import { User, Terminal, Code, FileText } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { getApiKey } from "@/utils/apiKeys";
+import { getGeminiHeaders } from "@/services/geminiService";
 
 type Agent = {
   id: string;
@@ -160,12 +160,6 @@ export function AgentChat() {
 
   // Analyze repo with Gemini API
   const analyzeWithGemini = async (repoInfo: any) => {
-    const geminiApiKey = getApiKey('gemini');
-    if (!geminiApiKey) {
-      setError("Gemini API key is missing");
-      return;
-    }
-
     try {
       addMessage("agent3", "Processing repository structure to create visualization data...");
       
@@ -187,10 +181,7 @@ export function AgentChat() {
 
       const response = await fetch('https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': geminiApiKey
-        },
+        headers: getGeminiHeaders(),
         body: JSON.stringify({
           contents: [{
             parts: [{
@@ -199,7 +190,7 @@ export function AgentChat() {
           }],
           generationConfig: {
             temperature: 0.2,
-            maxOutputTokens: 800
+            maxOutputTokens: 1000
           }
         })
       });
@@ -208,41 +199,14 @@ export function AgentChat() {
         throw new Error(`Gemini API error: ${response.status}`);
       }
 
-      const result = await response.json();
+      const data = await response.json();
+      const analysis = data.candidates[0].content.parts[0].text;
       
-      // Extract the text from the Gemini response
-      const analysisText = result.candidates?.[0]?.content?.parts?.[0]?.text || 
-                          "Analysis completed but no insights were generated.";
+      addMessage("agent4", analysis);
       
-      // Break the response into multiple agent messages for conversation effect
-      const sentences = analysisText.split(/(?<=[.!?])\s+/);
-      
-      // Group sentences into 3-4 chunks for different agents
-      const chunkSize = Math.ceil(sentences.length / 3);
-      const chunks = [];
-      
-      for (let i = 0; i < sentences.length; i += chunkSize) {
-        chunks.push(sentences.slice(i, i + chunkSize).join(" "));
-      }
-      
-      // Have agents share the analysis
-      setTimeout(() => addMessage("agent2", chunks[0] || "Analysis complete."), 800);
-      
-      if (chunks.length > 1) {
-        setTimeout(() => addMessage("agent4", chunks[1]), 2000);
-      }
-      
-      if (chunks.length > 2) {
-        setTimeout(() => addMessage("agent3", chunks[2]), 3200);
-      }
-      
-      // Final message
-      setTimeout(() => addMessage("agent1", "Analysis complete! You can explore the repository structure in the visualization tab."), 4500);
-      
-    } catch (err) {
-      console.error("Error with Gemini API:", err);
-      setError(`Failed to analyze with Gemini: ${err instanceof Error ? err.message : 'Unknown error'}`);
-      addMessage("agent4", "I encountered an issue connecting to Gemini for the advanced analysis. Basic repository information is still available.");
+    } catch (error) {
+      console.error("Error analyzing with Gemini:", error);
+      addMessage("agent2", "I encountered an error while analyzing the repository structure. Please check your API keys and try again.");
     }
   };
 
