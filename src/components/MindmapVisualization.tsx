@@ -1,6 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { MindmapTree } from "./MindmapTree";
-import { Card } from "@/components/ui/card";
 import { buildFileTree } from "@/services/githubService";
 
 interface MindmapVisualizationProps {
@@ -13,7 +12,8 @@ export function MindmapVisualization({ owner, repo }: MindmapVisualizationProps)
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleAnalyze = async () => {
+  useEffect(() => {
+    const fetchTreeData = async () => {
     setLoading(true);
     setError(null);
     try {
@@ -31,6 +31,9 @@ export function MindmapVisualization({ owner, repo }: MindmapVisualizationProps)
     setLoading(false);
   };
 
+    fetchTreeData();
+  }, [owner, repo]);
+
   // Helper to convert GitHubFile to MindmapTree node
   function fileToTreeNode(file: any): any {
     if (file.type === "dir") {
@@ -43,30 +46,25 @@ export function MindmapVisualization({ owner, repo }: MindmapVisualizationProps)
     }
   }
 
+  if (error) {
+    return <div style={{ color: "red" }}>{error}</div>;
+  }
+
+  if (!treeData) {
+    return null;
+  }
+
+  // Calculate dimensions based on container size
+  const containerWidth = 630; // 2/3 of the grid column
+  const containerHeight = 450; // 90% of the card height
+
   return (
-    <Card className="w-full h-full flex flex-col items-center justify-center p-8">
-      <button
-        onClick={handleAnalyze}
-        disabled={loading}
-        style={{
-          padding: "10px 24px",
-          background: "#3b82f6",
-          color: "#fff",
-          border: "none",
-          borderRadius: 6,
-          fontSize: 18,
-          marginBottom: 24,
-          cursor: loading ? "not-allowed" : "pointer"
-        }}
-      >
-        {loading ? "Analyzing..." : "Analyze the repository"}
-      </button>
-      {error && <div style={{ color: "red", marginBottom: 16 }}>{error}</div>}
-      {treeData && (
-        <div style={{ width: 900, height: 900 }}>
-          <MindmapTree data={treeData} width={900} height={900} />
+    <div className="w-full h-full flex items-center justify-center">
+      <MindmapTree 
+        data={treeData} 
+        width={containerWidth} 
+        height={containerHeight} 
+      />
         </div>
-      )}
-    </Card>
   );
 }

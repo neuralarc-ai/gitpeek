@@ -102,9 +102,9 @@ export function TabNavigation({
       
       <TabsContent value="visualization" className="border-t border-gitpeek-border">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-          <div className="md:col-span-2 bg-gitpeek-card rounded-lg border border-gitpeek-border p-4 h-[500px]">
+          <div className="md:col-span-2 bg-gitpeek-card rounded-lg border border-gitpeek-border p-4 max-h-[calc(100vh-260px)] relative overflow-hidden">
             <h3 className="text-lg font-medium mb-4">Repository Structure Visualization</h3>
-            <div className="h-[90%]">
+            <div className="h-[90%] relative">
               <MindmapVisualization 
                 owner={owner}
                 repo={repo}
@@ -112,7 +112,7 @@ export function TabNavigation({
             </div>
           </div>
           
-          <div className="bg-gitpeek-card rounded-lg border border-gitpeek-border p-4 h-[500px]">
+          <div className="bg-gitpeek-card rounded-lg border border-gitpeek-border p-4 max-h-[calc(100vh-268px)]">
             <h3 className="text-lg font-medium mb-4">File Explorer</h3>
             <div className="h-[90%]">
               <FileExplorer owner={owner} repo={repo} />

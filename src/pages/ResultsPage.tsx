@@ -1,11 +1,11 @@
-
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { Logo } from "@/components/ui/logo";
 import { RepositoryHeader } from "@/components/RepositoryHeader";
 import { TabNavigation } from "@/components/TabNavigation";
 
 const ResultsPage = () => {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const owner = searchParams.get("owner") || "";
   const repo = searchParams.get("repo") || "";
   const repoUrl = `https://github.com/${owner}/${repo}`;
@@ -14,7 +14,12 @@ const ResultsPage = () => {
     <div className="min-h-screen flex flex-col">
       <header className="w-full border-b border-gitpeek-border">
         <div className="container py-3 flex items-center">
-          <Logo size="small" />
+          <div 
+            className="cursor-pointer" 
+            onClick={() => navigate("/")}
+          >
+            <Logo size="small" />
+          </div>
         </div>
       </header>
       

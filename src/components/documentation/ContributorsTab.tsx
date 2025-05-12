@@ -1,9 +1,8 @@
-
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Contributor } from "@/services/githubService";
-import { PieChart, Pie, ResponsiveContainer, Cell, Tooltip, Legend } from "recharts";
+import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ZAxis } from "recharts";
 import { Users } from "lucide-react";
 
 interface ContributorsTabProps {
@@ -38,32 +37,23 @@ export function ContributorsTab({ contributors, isLoading }: ContributorsTabProp
   // Sort contributors by contributions (descending)
   const sortedContributors = [...contributors].sort((a, b) => b.contributions - a.contributions);
   
-  // Prepare data for pie chart
+  // Prepare data for bubble chart
   const prepareContributionData = () => {
     const topContributors = sortedContributors.slice(0, 5);
-    
-    // Calculate contributions from others
     const othersContributions = sortedContributors.slice(5).reduce((sum, c) => sum + c.contributions, 0);
     
-    const data = topContributors.map(c => ({
+    return topContributors.map((c, index) => ({
       name: c.login,
-      value: c.contributions
+      x: index + 1, // Position on x-axis
+      y: c.contributions, // Size of bubble
+      z: c.contributions, // Size of bubble
+      others: othersContributions
     }));
-    
-    // Add "Others" segment if there are more than 5 contributors
-    if (sortedContributors.length > 5) {
-      data.push({
-        name: 'Others',
-        value: othersContributions
-      });
-    }
-    
-    return data;
   };
   
   const contributionData = prepareContributionData();
   
-  // Colors for pie chart segments
+  // Colors for the chart
   const COLORS = ['#3b82f6', '#10b981', '#a855f7', '#f59e0b', '#ef4444', '#6b7280'];
   
   // Calculate contribution statistics
@@ -91,44 +81,72 @@ export function ContributorsTab({ contributors, isLoading }: ContributorsTabProp
             <div className="h-[300px]">
               <ChartContainer
                 config={{
-                  contributor1: { color: COLORS[0] },
-                  contributor2: { color: COLORS[1] },
-                  contributor3: { color: COLORS[2] },
-                  contributor4: { color: COLORS[3] },
-                  contributor5: { color: COLORS[4] },
-                  others: { color: COLORS[5] },
+                  contributions: { color: COLORS[0] },
+                  others: { color: COLORS[5] }
                 }}
               >
                 <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={contributionData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {contributionData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
+                  <ScatterChart
+                    margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#444" />
+                    <XAxis 
+                      type="number" 
+                      dataKey="x" 
+                      name="Rank" 
+                      stroke="#aaa"
+                      domain={[0, 6]}
+                      tickCount={6}
+                    />
+                    <YAxis 
+                      type="number" 
+                      dataKey="y" 
+                      name="Contributions" 
+                      stroke="#aaa"
+                    />
+                    <ZAxis 
+                      type="number" 
+                      dataKey="z" 
+                      range={[50, 400]} 
+                      name="Size" 
+                    />
                     <Tooltip
                       content={({ active, payload }) => {
                         if (active && payload && payload.length) {
+                          const data = payload[0].payload;
                           return (
-                            <ChartTooltipContent
-                              indicator="dot"
-                              labelKey="name"
-                              payload={payload as any}
-                            />
+                            <div className="bg-background border border-border p-2 rounded shadow-lg">
+                              <p className="font-medium">{data.name}</p>
+                              <p className="text-sm text-muted-foreground">
+                                Contributions: {data.y}
+                              </p>
+                              <p className="text-sm text-muted-foreground">
+                                Others: {data.others}
+                              </p>
+                            </div>
                           );
                         }
                         return null;
                       }}
                     />
-                  </PieChart>
+                    <Legend />
+                    <Scatter
+                      name="Contributions"
+                      data={contributionData}
+                      fill={COLORS[0]}
+                    >
+                      {contributionData.map((entry, index) => (
+                        <circle
+                          key={`cell-${index}`}
+                          cx={entry.x}
+                          cy={entry.y}
+                          r={Math.sqrt(entry.z) / 2}
+                          fill={COLORS[index % COLORS.length]}
+                          fillOpacity={0.6}
+                        />
+                      ))}
+                    </Scatter>
+                  </ScatterChart>
                 </ResponsiveContainer>
               </ChartContainer>
             </div>

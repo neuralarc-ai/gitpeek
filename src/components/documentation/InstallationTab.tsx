@@ -1,14 +1,14 @@
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Check, Download, FileCode } from "lucide-react";
+import { Check, Download, FileCode, GitBranch, Github } from "lucide-react";
 
 interface InstallationTabProps {
   installation: string | null;
   readme: string | null;
+  repoData: any | null;
   isLoading: boolean;
 }
 
-export function InstallationTab({ installation, readme, isLoading }: InstallationTabProps) {
+export function InstallationTab({ installation, readme, repoData, isLoading }: InstallationTabProps) {
   if (isLoading) {
     return (
       <div className="space-y-6 animate-pulse">
@@ -56,46 +56,36 @@ export function InstallationTab({ installation, readme, isLoading }: Installatio
   const readmeInstallation = getInstallationFromReadme();
   const installationInstructions = installation || readmeInstallation;
   
-  // Create a checklist of prerequisites based on common development needs
-  const prerequisiteChecklist = [
-    { name: "Git", command: "git --version" },
-    { name: "Node.js", command: "node --version" },
-    { name: "npm or yarn", command: "npm --version" },
-    { name: "Docker", command: "docker --version" },
-    { name: "Python", command: "python --version" },
-  ];
-  
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold">Installation Guide</h2>
       
+      {/* Repository Information */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center">
-            <Check className="mr-2 h-5 w-5" />
-            Prerequisites
+            <Github className="mr-2 h-5 w-5" />
+            Repository Information
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground mb-4">
-            Make sure you have the necessary tools installed before proceeding:
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-            {prerequisiteChecklist.map(item => (
-              <div key={item.name} className="flex items-center p-2 border rounded-md">
-                <div className="h-4 w-4 border rounded-sm mr-2 flex items-center justify-center">
-                  {/* Intentionally left unchecked for user to check */}
+          <div className="space-y-4">
+            <div className="flex items-center">
+              <span className="text-sm font-medium w-32">Repository:</span>
+              <span className="text-sm text-muted-foreground">{repoData?.full_name || 'N/A'}</span>
                 </div>
-                <div>
-                  <div className="text-sm font-medium">{item.name}</div>
-                  <div className="text-xs text-muted-foreground font-mono">{item.command}</div>
-                </div>
+            <div className="flex items-center">
+              <span className="text-sm font-medium w-32">Default Branch:</span>
+              <span className="text-sm text-muted-foreground flex items-center">
+                <GitBranch className="h-4 w-4 mr-1" />
+                {repoData?.default_branch || 'main'}
+              </span>
               </div>
-            ))}
           </div>
         </CardContent>
       </Card>
       
+      {/* Installation Steps */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center">
@@ -126,26 +116,75 @@ export function InstallationTab({ installation, readme, isLoading }: Installatio
         </CardContent>
       </Card>
       
+      {/* Dependencies */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center">
             <FileCode className="mr-2 h-5 w-5" />
-            Configuration
+            Dependencies
           </CardTitle>
         </CardHeader>
         <CardContent>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Required dependencies for this project:
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              {[
+                { name: "Git", command: "git --version" },
+                { name: "Node.js", command: "node --version" },
+                { name: "npm or yarn", command: "npm --version" },
+                { name: "Docker", command: "docker --version" },
+                { name: "Python", command: "python --version" },
+              ].map(item => (
+                <div key={item.name} className="flex items-center p-2 border rounded-md">
+                  <div className="h-4 w-4 border rounded-sm mr-2 flex items-center justify-center">
+                    {/* Intentionally left unchecked for user to check */}
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium">{item.name}</div>
+                    <div className="text-xs text-muted-foreground font-mono">{item.command}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Quick Start */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <Check className="mr-2 h-5 w-5" />
+            Quick Start
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            After installation, you may need to configure the application by:
+              Get started quickly with these basic commands:
           </p>
-          <ul className="list-disc pl-5 mt-2 space-y-2 text-sm">
-            <li>Setting up environment variables</li>
-            <li>Configuring database connections</li>
-            <li>Setting API keys and tokens</li>
-            <li>Adjusting application settings</li>
-          </ul>
-          <div className="mt-4 p-3 bg-primary/10 border border-primary/20 rounded-md text-sm">
-            <p className="font-medium">💡 Tip:</p>
-            <p className="mt-1">Check for configuration files like <code>.env.example</code>, <code>config.json</code>, or documentation in the README for specific configuration instructions.</p>
+            <div className="bg-muted p-4 rounded-md space-y-2">
+              <div>
+                <p className="text-sm font-medium">Clone the repository:</p>
+                <code className="block bg-background px-2 py-1 rounded mt-1 text-sm">
+                  git clone https://github.com/{repoData?.full_name}.git
+                </code>
+              </div>
+              <div>
+                <p className="text-sm font-medium">Install dependencies:</p>
+                <code className="block bg-background px-2 py-1 rounded mt-1 text-sm">
+                  npm install
+                </code>
+              </div>
+              <div>
+                <p className="text-sm font-medium">Start the application:</p>
+                <code className="block bg-background px-2 py-1 rounded mt-1 text-sm">
+                  npm start
+                </code>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>

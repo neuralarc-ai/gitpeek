@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Logo } from "@/components/ui/logo";
@@ -81,7 +80,12 @@ const LoadingPage = () => {
   return (
     <div className="min-h-screen flex flex-col p-4">
       <header className="w-full flex justify-center py-4">
-        <Logo />
+        <div 
+          className="cursor-pointer" 
+          onClick={() => navigate("/")}
+        >
+          <Logo />
+        </div>
       </header>
       
       <div className="flex-1 flex flex-col lg:flex-row gap-8 w-full max-w-5xl mx-auto mt-8">
