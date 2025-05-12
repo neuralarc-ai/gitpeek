@@ -90,7 +90,9 @@ export const MindmapTree: React.FC<MindmapTreeProps> = ({
 
   const getGitHubUrl = (node: GraphNode) => {
     if (!node.path) return null;
-    return `https://github.com/${owner}/${repo}/tree/main/${node.path}`;
+    // Remove the repo name from the path if it exists
+    const path = node.path.startsWith(`${repo}/`) ? node.path.slice(repo.length + 1) : node.path;
+    return `https://github.com/${owner}/${repo}/tree/main/${path}`;
   };
 
   // Initialize the graph and zoom to fit
@@ -105,8 +107,8 @@ export const MindmapTree: React.FC<MindmapTreeProps> = ({
       <ForceGraph2D
         ref={fgRef}
         graphData={graphData}
-        width={width}
-        height={height}
+        width={1280}
+        height={720}
         nodeAutoColorBy="type"
         nodeLabel="name"
         linkColor={() => "#666"}
@@ -116,7 +118,7 @@ export const MindmapTree: React.FC<MindmapTreeProps> = ({
         onNodeClick={(node) => {
           setSelectedNode(node);
         }}
-        // Force layout configuration
+        // Force layout configuration for tree structure
         linkDirectionalParticles={2}
         linkDirectionalParticleSpeed={0.005}
         linkDirectionalParticleWidth={2}
@@ -150,43 +152,10 @@ export const MindmapTree: React.FC<MindmapTreeProps> = ({
           ctx.textBaseline = "middle";
           ctx.fillText(label, node.x!, node.y! + 15 / globalScale);
         }}
-        // Link rendering
-        linkDirectionalParticles={2}
-        linkDirectionalParticleSpeed={0.005}
-        linkDirectionalParticleWidth={2}
-        linkDirectionalParticleColor={() => "#666"}
-        // Zoom and pan controls
-        onWheel={(event) => {
-          event.preventDefault();
-          const zoom = fgRef.current.zoom();
-          const zoomFactor = event.deltaY > 0 ? 0.9 : 1.1;
-          fgRef.current.zoom(zoom * zoomFactor);
-        }}
-        onMouseDown={(event) => {
-          if (event.button === 0) { // Left click
-            fgRef.current.pauseAnimation();
-            const startPos = { x: event.clientX, y: event.clientY };
-            const startZoom = fgRef.current.zoom();
-            const startCenter = fgRef.current.center();
-
-            const onMouseMove = (e: MouseEvent) => {
-              const dx = e.clientX - startPos.x;
-              const dy = e.clientY - startPos.y;
-              fgRef.current.center({
-                x: startCenter.x - dx / startZoom,
-                y: startCenter.y - dy / startZoom
-              });
-            };
-
-            const onMouseUp = () => {
-              document.removeEventListener('mousemove', onMouseMove);
-              document.removeEventListener('mouseup', onMouseUp);
-              fgRef.current.resumeAnimation();
-            };
-
-            document.addEventListener('mousemove', onMouseMove);
-            document.addEventListener('mouseup', onMouseUp);
-          }
+        onNodeDrag={(node) => {
+          if (!node) return;
+          node.fx = node.x;
+          node.fy = node.y;
         }}
       />
 

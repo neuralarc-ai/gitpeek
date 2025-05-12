@@ -6,8 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Light as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vs2015 } from 'react-syntax-highlighter/dist/esm/styles/hljs';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { getFileIcon } from "@/lib/utils";
 
 interface FileExplorerProps {
@@ -167,7 +167,7 @@ const FileTreeNode = ({ node, level, onToggle, expandedPaths, onFileClick, expan
               </div>
               <SyntaxHighlighter
                 language={getFileLanguage(node.name)}
-                style={vs2015}
+                style={vscDarkPlus}
                 customStyle={{
                   margin: 0,
                   borderRadius: '0.375rem',

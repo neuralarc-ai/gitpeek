@@ -63,7 +63,9 @@ export function MindmapVisualization({ owner, repo }: MindmapVisualizationProps)
       <MindmapTree 
         data={treeData} 
         width={containerWidth} 
-        height={containerHeight} 
+        height={containerHeight}
+        owner={owner}
+        repo={repo}
       />
         </div>
   );
