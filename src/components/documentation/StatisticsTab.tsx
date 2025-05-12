@@ -4,6 +4,7 @@ import { Progress } from "@/components/ui/progress";
 import { RepoData, RepoLanguages, RepoStats } from "@/services/githubService";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend, LineChart, Line, PieChart, Pie, Cell, Area, AreaChart, CartesianGrid } from "recharts";
 import { CalendarDays, GitBranch, GitPullRequest, Star } from "lucide-react";
+import { useMemo } from "react";
 
 interface StatisticsTabProps {
   stats: RepoStats | null;
@@ -16,10 +17,10 @@ export function StatisticsTab({ stats, languages, repoData, isLoading }: Statist
   if (isLoading) {
     return (
       <div className="space-y-6 animate-pulse">
-        <div className="h-8 bg-muted rounded w-1/3"></div>
+        <div className="h-8 bg-muted/20 backdrop-blur-sm rounded-lg w-1/3"></div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="h-60 bg-muted rounded"></div>
-          <div className="h-60 bg-muted rounded"></div>
+          <div className="h-60 bg-muted/20 backdrop-blur-sm rounded-lg"></div>
+          <div className="h-60 bg-muted/20 backdrop-blur-sm rounded-lg"></div>
         </div>
       </div>
     );
@@ -27,7 +28,7 @@ export function StatisticsTab({ stats, languages, repoData, isLoading }: Statist
 
   if (!stats || !repoData) {
     return (
-      <div>
+      <div className="p-6 rounded-lg bg-background/50 backdrop-blur-sm border border-border/50">
         <h2 className="text-2xl font-bold">Repository Statistics</h2>
         <p className="text-muted-foreground mt-2">
           No statistics data available. Please ensure the repository is accessible.
@@ -36,8 +37,8 @@ export function StatisticsTab({ stats, languages, repoData, isLoading }: Statist
     );
   }
   
-  // Transform languages data for visualization
-  const prepareLanguageData = () => {
+  // Memoize expensive calculations
+  const languageData = useMemo(() => {
     if (!languages || Object.keys(languages).length === 0) return [];
     
     const total = Object.values(languages).reduce((sum, value) => sum + value, 0);
@@ -49,33 +50,36 @@ export function StatisticsTab({ stats, languages, repoData, isLoading }: Statist
         percentage: Math.round((value / total) * 100)
       }))
       .sort((a, b) => b.value - a.value);
-  };
+  }, [languages]);
   
-  const languageData = prepareLanguageData();
-  
-  // Colors for the charts
-  const COLORS = ['#3b82f6', '#10b981', '#a855f7', '#f59e0b', '#ef4444', '#6b7280', '#0ea5e9', '#ec4899'];
-  
-  // Prepare commit activity data for the chart
-  const prepareCommitActivityData = () => {
-    if (!Array.isArray(stats?.commitActivity)) return [];
+  const commitActivityData = useMemo(() => {
+    if (!stats?.commitActivity || !Array.isArray(stats.commitActivity)) {
+      return Array(12).fill(0).map((_, i) => ({
+        week: `Week ${i + 1}`,
+        commits: 0
+      }));
+    }
+    
     return stats.commitActivity
-      .slice(-12) // Last 12 weeks
+      .slice(-12)
       .map((week, index) => ({
         week: `Week ${index + 1}`,
-        commits: week.total || 0
+        commits: week?.total || 0
       }));
-  };
+  }, [stats?.commitActivity]);
   
-  const commitActivityData = prepareCommitActivityData();
+  const totalCommits = useMemo(() => 
+    Array.isArray(stats?.commitActivity) 
+      ? stats.commitActivity.reduce((sum, week) => sum + (week?.total || 0), 0)
+      : 0
+  , [stats?.commitActivity]);
   
-  // Calculate code addition/deletion statistics
-  const calculateCodeChanges = () => {
+  const codeChanges = useMemo(() => {
     if (!stats?.codeFrequency || !Array.isArray(stats.codeFrequency)) {
       return { additions: 0, deletions: 0 };
     }
     
-    const totals = stats.codeFrequency.reduce(
+    return stats.codeFrequency.reduce(
       (acc, week) => {
         if (Array.isArray(week) && week.length >= 3) {
           const [_, add, remove] = week;
@@ -88,11 +92,10 @@ export function StatisticsTab({ stats, languages, repoData, isLoading }: Statist
       }, 
       { additions: 0, deletions: 0 }
     );
-    
-    return totals;
-  };
+  }, [stats?.codeFrequency]);
   
-  const codeChanges = calculateCodeChanges();
+  // Colors for the charts
+  const COLORS = ['#3b82f6', '#10b981', '#a855f7', '#f59e0b', '#ef4444', '#6b7280', '#0ea5e9', '#ec4899'];
   
   return (
     <div className="space-y-6">
@@ -100,31 +103,31 @@ export function StatisticsTab({ stats, languages, repoData, isLoading }: Statist
       
       {/* Key metrics */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
+        <Card className="bg-background/50 backdrop-blur-sm border-border/50">
           <CardContent className="p-4 flex flex-col items-center justify-center text-center">
             <Star className="h-8 w-8 text-yellow-500 mb-1" />
             <div className="text-2xl font-bold">{repoData.stargazers_count}</div>
             <p className="text-xs text-muted-foreground mt-1">Stars</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="bg-background/50 backdrop-blur-sm border-border/50">
           <CardContent className="p-4 flex flex-col items-center justify-center text-center">
             <GitBranch className="h-8 w-8 text-green-500 mb-1" />
-            <div className="text-2xl font-bold">{stats.branches}</div>
+            <div className="text-2xl font-bold">{stats.branches || 0}</div>
             <p className="text-xs text-muted-foreground mt-1">Branches</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="bg-background/50 backdrop-blur-sm border-border/50">
           <CardContent className="p-4 flex flex-col items-center justify-center text-center">
             <GitPullRequest className="h-8 w-8 text-blue-500 mb-1" />
             <div className="text-2xl font-bold">{repoData.forks_count}</div>
             <p className="text-xs text-muted-foreground mt-1">Forks</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="bg-background/50 backdrop-blur-sm border-border/50">
           <CardContent className="p-4 flex flex-col items-center justify-center text-center">
             <CalendarDays className="h-8 w-8 text-purple-500 mb-1" />
-            <div className="text-2xl font-bold">{stats.commitActivity?.reduce((sum, week) => sum + week.total, 0) || 0}</div>
+            <div className="text-2xl font-bold">{totalCommits}</div>
             <p className="text-xs text-muted-foreground mt-1">Total Commits</p>
           </CardContent>
         </Card>
@@ -132,37 +135,49 @@ export function StatisticsTab({ stats, languages, repoData, isLoading }: Statist
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Language Distribution */}
-        <Card>
+        <Card className="bg-background/50 backdrop-blur-sm border-border/50">
           <CardHeader>
             <CardTitle>Language Distribution</CardTitle>
             <CardDescription>Breakdown of programming languages used</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-[160px] -mx-2">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart
-                  data={languageData}
-                  margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
-                >
-                  <defs>
-                    <linearGradient id="languageAreaGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.7} />
-                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.2} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="name" stroke="#aaa" />
-                  <YAxis stroke="#aaa" />
-                  <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-                  <Tooltip />
-                  <Area
-                    type="monotone"
-                    dataKey="value"
-                    stroke="#3b82f6"
-                    fillOpacity={1}
-                    fill="url(#languageAreaGradient)"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+              <ChartContainer
+                config={{
+                  value: {
+                    label: "Lines of Code",
+                    theme: {
+                      light: "#3b82f6",
+                      dark: "#60a5fa",
+                    },
+                  },
+                }}
+              >
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart
+                    data={languageData}
+                    margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                  >
+                    <defs>
+                      <linearGradient id="languageAreaGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.7} />
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.2} />
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="name" stroke="#aaa" />
+                    <YAxis stroke="#aaa" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#444" />
+                    <Tooltip content={<ChartTooltipContent />} />
+                    <Area
+                      type="monotone"
+                      dataKey="value"
+                      stroke="#3b82f6"
+                      fillOpacity={1}
+                      fill="url(#languageAreaGradient)"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </ChartContainer>
             </div>
             <div className="space-y-2 mt-4">
               {languageData.slice(0, 5).map((lang, i) => (
@@ -179,40 +194,52 @@ export function StatisticsTab({ stats, languages, repoData, isLoading }: Statist
         </Card>
         
         {/* Commit Activity */}
-        <Card>
+        <Card className="bg-background/50 backdrop-blur-sm border-border/50">
           <CardHeader>
             <CardTitle>Commit Activity</CardTitle>
             <CardDescription>Weekly commit frequency over time</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-[160px] -mx-2">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={commitActivityData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="commitActivityGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8} />
-                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="week" stroke="#aaa" />
-                  <YAxis stroke="#aaa" />
-                  <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-                  <Tooltip />
-                  <Area
-                    type="monotone"
-                    dataKey="commits"
-                    stroke="#3b82f6"
-                    fillOpacity={1}
-                    fill="url(#commitActivityGradient)"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+              <ChartContainer
+                config={{
+                  commits: {
+                    label: "Commits",
+                    theme: {
+                      light: "#3b82f6",
+                      dark: "#60a5fa",
+                    },
+                  },
+                }}
+              >
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={commitActivityData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="commitActivityGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8} />
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="week" stroke="#aaa" />
+                    <YAxis stroke="#aaa" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#444" />
+                    <Tooltip content={<ChartTooltipContent />} />
+                    <Area
+                      type="monotone"
+                      dataKey="commits"
+                      stroke="#3b82f6"
+                      fillOpacity={1}
+                      fill="url(#commitActivityGradient)"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </ChartContainer>
             </div>
           </CardContent>
         </Card>
         
         {/* Code Changes */}
-        <Card>
+        <Card className="bg-background/50 backdrop-blur-sm border-border/50">
           <CardHeader>
             <CardTitle>Code Changes</CardTitle>
             <CardDescription>Lines of code added and removed</CardDescription>
@@ -235,7 +262,7 @@ export function StatisticsTab({ stats, languages, repoData, isLoading }: Statist
                 <div className="h-full bg-red-500" />
               </Progress>
               
-              <div className="rounded-md bg-muted p-4">
+              <div className="rounded-md bg-muted/20 backdrop-blur-sm p-4">
                 <div className="text-sm font-medium">Code Churn Rate</div>
                 <div className="text-2xl font-bold mt-1">
                   {Math.round((codeChanges.deletions / (codeChanges.additions + 0.1)) * 100)}%
@@ -249,7 +276,7 @@ export function StatisticsTab({ stats, languages, repoData, isLoading }: Statist
         </Card>
         
         {/* Repository Age */}
-        <Card>
+        <Card className="bg-background/50 backdrop-blur-sm border-border/50">
           <CardHeader>
             <CardTitle>Repository Timeline</CardTitle>
             <CardDescription>Key dates and age information</CardDescription>
@@ -257,7 +284,7 @@ export function StatisticsTab({ stats, languages, repoData, isLoading }: Statist
           <CardContent>
             <div className="space-y-4">
               <div className="flex items-center space-x-4">
-                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <div className="h-10 w-10 rounded-full bg-primary/10 backdrop-blur-sm flex items-center justify-center">
                   <CalendarDays className="h-5 w-5" />
                 </div>
                 <div>
@@ -273,7 +300,7 @@ export function StatisticsTab({ stats, languages, repoData, isLoading }: Statist
               </div>
               
               <div className="flex items-center space-x-4">
-                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <div className="h-10 w-10 rounded-full bg-primary/10 backdrop-blur-sm flex items-center justify-center">
                   <CalendarDays className="h-5 w-5" />
                 </div>
                 <div>
@@ -295,7 +322,7 @@ export function StatisticsTab({ stats, languages, repoData, isLoading }: Statist
                 </div>
               </div>
               
-              <div className="rounded-md bg-muted p-4 mt-3">
+              <div className="rounded-md bg-muted/20 backdrop-blur-sm p-4 mt-3">
                 <div className="text-sm font-medium">Activity Score</div>
                 <div className="flex items-center mt-2">
                   <Progress 

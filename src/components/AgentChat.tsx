@@ -44,13 +44,22 @@ export function AgentChat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isTyping, setIsTyping] = useState(false);
+  const [currentTypingAgent, setCurrentTypingAgent] = useState<string | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
   const [searchParams] = useSearchParams();
   const owner = searchParams.get("owner");
   const repo = searchParams.get("repo");
 
-  // Add a new message from a specific agent
-  const addMessage = (agentId: string, content: string) => {
+  // Add a new message with typing animation
+  const addMessageWithDelay = async (agentId: string, content: string, delay: number = 1000) => {
+    setCurrentTypingAgent(agentId);
+    setIsTyping(true);
+    
+    // Simulate typing delay based on content length
+    const typingTime = Math.min(content.length * 30, 3000);
+    await new Promise(resolve => setTimeout(resolve, typingTime));
+    
     const newMessage: Message = {
       id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
       agentId,
@@ -59,6 +68,8 @@ export function AgentChat() {
     };
     
     setMessages(prev => [...prev, newMessage]);
+    setIsTyping(false);
+    setCurrentTypingAgent(null);
     
     // Scroll to bottom on new message
     setTimeout(() => {
@@ -66,6 +77,9 @@ export function AgentChat() {
         chatRef.current.scrollTop = chatRef.current.scrollHeight;
       }
     }, 100);
+
+    // Add delay before next message
+    await new Promise(resolve => setTimeout(resolve, delay));
   };
 
   // Fetch repository data using GitHub API
@@ -81,7 +95,7 @@ export function AgentChat() {
 
     try {
       // Initial message
-      addMessage("agent1", `Starting analysis of ${owner}/${repo}...`);
+      await addMessageWithDelay("agent1", `Starting analysis of ${owner}/${repo}...`, 1500);
       
       // Fetch basic repo info
       const repoResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
@@ -97,7 +111,7 @@ export function AgentChat() {
       
       const repoData = await repoResponse.json();
       
-      addMessage("agent2", `Repository found! It has ${repoData.stargazers_count} stars and ${repoData.forks_count} forks. Let me check the contents...`);
+      await addMessageWithDelay("agent2", `Repository found! It has ${repoData.stargazers_count} stars and ${repoData.forks_count} forks. Let me check the contents...`, 2000);
       
       // Fetch repo contents
       const contentsResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents`, {
@@ -115,7 +129,7 @@ export function AgentChat() {
       const files = contents.filter((item: any) => item.type === "file");
       const directories = contents.filter((item: any) => item.type === "dir");
       
-      addMessage("agent3", `Found ${files.length} files and ${directories.length} directories in the root. Scanning for language distribution...`);
+      await addMessageWithDelay("agent3", `Found ${files.length} files and ${directories.length} directories in the root. Scanning for language distribution...`, 2000);
       
       // Fetch languages
       const languagesResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/languages`, {
@@ -132,10 +146,10 @@ export function AgentChat() {
       const languages = await languagesResponse.json();
       const languagesList = Object.keys(languages).join(", ");
       
-      addMessage("agent4", `Language distribution analysis complete. Primary languages: ${languagesList}.`);
+      await addMessageWithDelay("agent4", `Language distribution analysis complete. Primary languages: ${languagesList}.`, 2000);
       
       // Start Gemini API analysis
-      addMessage("agent1", "Let me run a deeper analysis using Gemini. This will provide insights into the codebase architecture...");
+      await addMessageWithDelay("agent1", "Let me run a deeper analysis using Gemini. This will provide insights into the codebase architecture...", 2000);
       
       // Prepare data for Gemini
       const repoInfo = {
@@ -152,7 +166,7 @@ export function AgentChat() {
     } catch (err) {
       console.error("Error fetching repository data:", err);
       setError(`Failed to analyze repository: ${err instanceof Error ? err.message : 'Unknown error'}`);
-      addMessage("agent2", `I'm having trouble accessing the repository data. Please check your API keys and repository URL.`);
+      await addMessageWithDelay("agent2", `I'm having trouble accessing the repository data. Please check your API keys and repository URL.`, 1500);
     } finally {
       setLoading(false);
     }
@@ -161,7 +175,7 @@ export function AgentChat() {
   // Analyze repo with Gemini API
   const analyzeWithGemini = async (repoInfo: any) => {
     try {
-      addMessage("agent3", "Processing repository structure to create visualization data...");
+      await addMessageWithDelay("agent3", "Processing repository structure to create visualization data...", 2000);
       
       const prompt = `
         Analyze this GitHub repository information and provide insights about its architecture and structure:
@@ -202,11 +216,34 @@ export function AgentChat() {
       const data = await response.json();
       const analysis = data.candidates[0].content.parts[0].text;
       
-      addMessage("agent4", analysis);
+      // Split analysis into smaller chunks for more natural conversation
+      const sentences = analysis.split(/(?<=[.!?])\s+/);
+      const chunks = [];
+      let currentChunk = [];
+      
+      for (const sentence of sentences) {
+        currentChunk.push(sentence);
+        if (currentChunk.length >= 2) {
+          chunks.push(currentChunk.join(" "));
+          currentChunk = [];
+        }
+      }
+      if (currentChunk.length > 0) {
+        chunks.push(currentChunk.join(" "));
+      }
+      
+      // Have different agents share the analysis
+      for (let i = 0; i < chunks.length; i++) {
+        const agentId = `agent${(i % 4) + 1}`;
+        await addMessageWithDelay(agentId, chunks[i], 2000);
+      }
+      
+      // Final message
+      await addMessageWithDelay("agent1", "Analysis complete! You can explore the repository structure in the visualization tab.", 1500);
       
     } catch (error) {
       console.error("Error analyzing with Gemini:", error);
-      addMessage("agent2", "I encountered an error while analyzing the repository structure. Please check your API keys and try again.");
+      await addMessageWithDelay("agent2", "I encountered an error while analyzing the repository structure. Please check your API keys and try again.", 1500);
     }
   };
 
@@ -232,14 +269,14 @@ export function AgentChat() {
 
   return (
     <div className="glass w-full h-full flex flex-col">
-      <div className="p-4 border-b border-gitpeek-border">
+      <div className="p-3 border-b border-gitpeek-border">
         <h3 className="font-medium">Agent Chat</h3>
         <p className="text-xs text-muted-foreground">AI agents analyzing your repository</p>
       </div>
       
       <div 
         ref={chatRef}
-        className="flex-1 p-4 overflow-y-auto hide-scrollbar space-y-4"
+        className="flex-1 p-3 space-y-3 overflow-y-auto hide-scrollbar"
       >
         {messages.length === 0 && !error && loading && (
           <div className="flex items-center justify-center h-full">
@@ -253,7 +290,7 @@ export function AgentChat() {
         )}
         
         {error && messages.length === 0 && (
-          <div className="text-center text-destructive p-4 rounded-md bg-destructive/10">
+          <div className="text-center text-destructive p-3 rounded-md bg-destructive/10">
             <p className="font-medium mb-1">Analysis Error</p>
             <p className="text-sm">{error}</p>
             <p className="text-xs mt-2">Please check your API keys in settings.</p>
@@ -265,16 +302,16 @@ export function AgentChat() {
           return (
             <div 
               key={message.id}
-              className="flex items-start space-x-3 animate-fade-in"
+              className="flex items-start space-x-2 animate-fade-in"
             >
               <div className="flex flex-col items-center">
                 {agent.avatar}
-                <span className="text-xs text-muted-foreground mt-1">{agent.name}</span>
+                <span className="text-xs text-muted-foreground mt-0.5">{agent.name}</span>
               </div>
               
-              <div className="flex-1 space-y-1">
-                <div className="glass p-3 rounded-lg">
-                  <p className="text-sm">{message.content}</p>
+              <div className="flex-1 space-y-0.5">
+                <div className="glass p-2 rounded-lg">
+                  <p className="text-sm leading-relaxed">{message.content}</p>
                 </div>
                 <div className="text-xs text-muted-foreground text-right">
                   {formatTime(message.timestamp)}
@@ -283,6 +320,24 @@ export function AgentChat() {
             </div>
           );
         })}
+
+        {isTyping && currentTypingAgent && (
+          <div className="flex items-start space-x-2 animate-fade-in">
+            <div className="flex flex-col items-center">
+              {getAgentById(currentTypingAgent).avatar}
+              <span className="text-xs text-muted-foreground mt-0.5">{getAgentById(currentTypingAgent).name}</span>
+            </div>
+            <div className="flex-1">
+              <div className="glass p-2 rounded-lg">
+                <div className="flex space-x-1">
+                  <div className="w-2 h-2 rounded-full bg-muted-foreground animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <div className="w-2 h-2 rounded-full bg-muted-foreground animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <div className="w-2 h-2 rounded-full bg-muted-foreground animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

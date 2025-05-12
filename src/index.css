@@ -1,4 +1,3 @@
-
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap');
 
 @tailwind base;
@@ -44,8 +43,32 @@
   }
 }
 
-.glass {
-  @apply bg-black/20 backdrop-blur-md border border-gitpeek-border rounded-lg;
+@layer utilities {
+  .glass {
+    @apply bg-black/20 backdrop-blur-md border border-gitpeek-border rounded-lg;
+  }
+  
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@keyframes scan {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
+}
+
+.animate-scan {
+  animation: scan 2s linear infinite;
 }
 
 .animate-line {
@@ -62,13 +85,4 @@
 
 .gradient-text {
   @apply bg-gradient-to-r from-gitpeek-blue to-gitpeek-cyan bg-clip-text text-transparent;
-}
-
-/* Hide scrollbar */
-.hide-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-.hide-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
 }

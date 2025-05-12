@@ -11,20 +11,22 @@ import { StatisticsTab } from "./documentation/StatisticsTab";
 import { fetchRepoData, fetchRepoLanguages, fetchRepoReadme, fetchRepoContributors, fetchRepoStats } from "@/services/githubService";
 import { analyzeRepository } from "@/services/geminiService";
 import { toast } from "@/components/ui/sonner";
+import { useLocation, useNavigate } from "react-router-dom";
 
 interface TabNavigationProps {
   owner: string;
   repo: string;
   activeTab?: string;
   onChangeTab?: (tab: string) => void;
+  onAnalysisUpdate?: (analysis: {
+    overview: string | null;
+    architecture: string | null;
+    installation: string | null;
+    codeStructure: string | null;
+  }) => void;
 }
 
-export function TabNavigation({ 
-  owner, 
-  repo, 
-  activeTab = "visualization", 
-  onChangeTab 
-}: TabNavigationProps) {
+export function TabNavigation({ owner, repo, onChangeTab, onAnalysisUpdate }: TabNavigationProps) {
   // Inside tab state for the documentation sub-tabs
   const [docTab, setDocTab] = useState("overview");
   const [isLoading, setIsLoading] = useState(true);
@@ -41,7 +43,7 @@ export function TabNavigation({
     installation: null,
     codeStructure: null
   });
-  
+
   const handleTabChange = (value: string) => {
     if (onChangeTab) onChangeTab(value);
   };
@@ -76,6 +78,9 @@ export function TabNavigation({
           const analysisResponse = await analyzeRepository(repoDataResponse, languagesResponse, contributorsResponse);
           if (analysisResponse) {
             setAnalysis(analysisResponse);
+            if (onAnalysisUpdate) {
+              onAnalysisUpdate(analysisResponse);
+            }
           }
         }
       } catch (error) {
@@ -87,18 +92,16 @@ export function TabNavigation({
     };
     
     fetchData();
-  }, [owner, repo]);
+  }, [owner, repo, onAnalysisUpdate]);
 
   return (
-    <Tabs 
-      defaultValue={activeTab} 
-      className="w-full"
-      onValueChange={handleTabChange}
-    >
-      <TabsList className="grid grid-cols-2 w-full max-w-md">
-        <TabsTrigger value="visualization">Visualization</TabsTrigger>
-        <TabsTrigger value="documentation">Documentation</TabsTrigger>
-      </TabsList>
+    <Tabs defaultValue="visualization" className="w-full" onValueChange={handleTabChange}>
+      <div className="w-full flex justify-center px-4 py-2">
+        <TabsList className="grid grid-cols-2 w-full max-w-md">
+          <TabsTrigger value="visualization">Visualization</TabsTrigger>
+          <TabsTrigger value="documentation">Documentation</TabsTrigger>
+        </TabsList>
+      </div>
       
       <TabsContent value="visualization" className="border-t border-gitpeek-border">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
@@ -123,16 +126,20 @@ export function TabNavigation({
       
       <TabsContent value="documentation" className="border-t border-gitpeek-border">
         <Tabs value={docTab} onValueChange={setDocTab} className="w-full mt-4">
-          <TabsList className="w-full max-w-4xl overflow-x-auto hide-scrollbar">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="code">Code</TabsTrigger>
-            <TabsTrigger value="contributors">Contributors</TabsTrigger>
-            <TabsTrigger value="installation">Installation</TabsTrigger>
-            <TabsTrigger value="statistics">Statistics</TabsTrigger>
-            <TabsTrigger value="readme">README</TabsTrigger>
-          </TabsList>
+          <div className="w-full flex justify-center px-4 py-2">
+            <TabsList className="w-full max-w-4xl overflow-x-auto hide-scrollbar backdrop-blur-sm bg-background/60 border border-border/50 rounded-lg p-1 flex justify-center">
+              <div className="flex space-x-1">
+                <TabsTrigger value="overview" className="px-4 py-2">Overview</TabsTrigger>
+                <TabsTrigger value="code" className="px-4 py-2">Code</TabsTrigger>
+                <TabsTrigger value="contributors" className="px-4 py-2">Contributors</TabsTrigger>
+                <TabsTrigger value="installation" className="px-4 py-2">Installation</TabsTrigger>
+                <TabsTrigger value="statistics" className="px-4 py-2">Statistics</TabsTrigger>
+                <TabsTrigger value="readme" className="px-4 py-2">README</TabsTrigger>
+              </div>
+            </TabsList>
+          </div>
           
-          <div className="mt-4 bg-gitpeek-card rounded-lg border border-gitpeek-border p-6 min-h-[500px]">
+          <div className="mt-4 backdrop-blur-md bg-background/40 border border-border/50 rounded-lg p-6 min-h-[500px] shadow-lg">
             <TabsContent value="overview">
               <OverviewTab 
                 overview={analysis.overview}
@@ -162,6 +169,7 @@ export function TabNavigation({
               <InstallationTab 
                 installation={analysis.installation}
                 readme={readme}
+                repoData={repoData}
                 isLoading={isLoading}
               />
             </TabsContent>

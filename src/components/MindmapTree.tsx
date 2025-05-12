@@ -1,18 +1,21 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import ForceGraph2D from "react-force-graph-2d";
 import * as Dialog from "@radix-ui/react-dialog";
-import { FileIcon, FolderIcon } from "lucide-react";
+import { FileIcon, FolderIcon, X, ExternalLink } from "lucide-react";
 import * as d3 from "d3";
 
 interface TreeNode {
   name: string;
   children?: TreeNode[];
+  path?: string;
 }
 
 interface MindmapTreeProps {
   data: TreeNode | null;
   width?: number;
   height?: number;
+  owner: string;
+  repo: string;
 }
 
 interface GraphNode {
@@ -24,6 +27,7 @@ interface GraphNode {
   level?: number;
   x?: number;
   y?: number;
+  path?: string;
 }
 
 interface GraphLink {
@@ -40,6 +44,8 @@ export const MindmapTree: React.FC<MindmapTreeProps> = ({
   data,
   width = 1280,
   height = 720,
+  owner,
+  repo,
 }) => {
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const fgRef = useRef<any>();
@@ -52,19 +58,21 @@ export const MindmapTree: React.FC<MindmapTreeProps> = ({
     const links: GraphLink[] = [];
     let nodeId = 0;
 
-    const processNode = (node: TreeNode, parentId?: string, level: number = 0): GraphNode => {
+    const processNode = (node: TreeNode, parentId?: string, level: number = 0, parentPath: string = ""): GraphNode => {
       const id = `node-${nodeId++}`;
       const isFolder = node.children && node.children.length > 0;
+      const currentPath = parentPath ? `${parentPath}/${node.name}` : node.name;
       
       const graphNode: GraphNode = {
         id,
         name: node.name,
         type: isFolder ? "folder" : "file",
-        children: node.children?.map(child => processNode(child, id, level + 1)),
+        children: node.children?.map(child => processNode(child, id, level + 1, currentPath)),
         val: isFolder ? 2 : 1,
         level,
-        x: level * 200, // Initial x position based on level
-        y: 0 // Initial y position
+        path: currentPath,
+        x: level * 200,
+        y: 0
       };
 
       nodes.push(graphNode);
@@ -79,6 +87,11 @@ export const MindmapTree: React.FC<MindmapTreeProps> = ({
     processNode(data);
     return { nodes, links };
   }, [data]);
+
+  const getGitHubUrl = (node: GraphNode) => {
+    if (!node.path) return null;
+    return `https://github.com/${owner}/${repo}/tree/main/${node.path}`;
+  };
 
   // Initialize the graph and zoom to fit
   useEffect(() => {
@@ -179,43 +192,80 @@ export const MindmapTree: React.FC<MindmapTreeProps> = ({
 
       <Dialog.Root open={!!selectedNode} onOpenChange={() => setSelectedNode(null)}>
         <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 bg-black/50" />
-          <Dialog.Content className="fixed top-1/2 left-1/2 bg-[#161b22] text-white p-6 rounded-lg shadow-lg w-96 -translate-x-1/2 -translate-y-1/2">
-            <Dialog.Title className="text-xl font-bold mb-2 flex items-center gap-2">
-              {selectedNode?.type === "folder" ? (
-                <FolderIcon className="h-5 w-5 text-[#58a6ff]" />
-              ) : (
-                <FileIcon className="h-5 w-5 text-[#c9d1d9]" />
-              )}
-              {selectedNode?.name}
-            </Dialog.Title>
-            <Dialog.Description className="text-sm text-muted-foreground">
-              Type: {selectedNode?.type}
-            </Dialog.Description>
-            {selectedNode?.children && (
-              <div className="mt-4">
-                <h4 className="text-sm font-medium mb-2">Contents:</h4>
-                <ul className="space-y-1">
-                  {selectedNode.children.map((child) => (
-                    <li 
-                      key={child.id}
-                      className="text-sm flex items-center gap-2 cursor-pointer hover:text-[#58a6ff]"
-                      onClick={() => setSelectedNode(child)}
-                    >
-                      {child.type === "folder" ? (
-                        <FolderIcon className="h-4 w-4 text-[#58a6ff]" />
-                      ) : (
-                        <FileIcon className="h-4 w-4 text-[#c9d1d9]" />
-                      )}
-                      {child.name}
-                    </li>
-                  ))}
-                </ul>
+          <Dialog.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm" />
+          <Dialog.Content className="fixed top-1/2 left-1/2 bg-gitpeek-card border border-gitpeek-border text-foreground p-6 rounded-lg shadow-lg w-[400px] max-h-[80vh] overflow-y-auto -translate-x-1/2 -translate-y-1/2">
+            <div className="flex items-start justify-between mb-4">
+              <Dialog.Title className="text-xl font-bold flex items-center gap-2">
+                {selectedNode?.type === "folder" ? (
+                  <FolderIcon className="h-5 w-5 text-[#58a6ff]" />
+                ) : (
+                  <FileIcon className="h-5 w-5 text-[#c9d1d9]" />
+                )}
+                {selectedNode?.name}
+              </Dialog.Title>
+              <Dialog.Close className="text-muted-foreground hover:text-foreground transition-colors">
+                <X className="h-5 w-5" />
+              </Dialog.Close>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span className="px-2 py-1 bg-muted rounded-md">
+                  {selectedNode?.type === "folder" ? "Directory" : "File"}
+                </span>
+                {selectedNode?.level !== undefined && (
+                  <span className="px-2 py-1 bg-muted rounded-md">
+                    Level {selectedNode.level}
+                  </span>
+                )}
               </div>
-            )}
-            <Dialog.Close className="mt-4 text-[#58a6ff] hover:text-[#58a6ff]/80 cursor-pointer">
-              Close
-            </Dialog.Close>
+
+              {selectedNode?.path && (
+                <a
+                  href={getGitHubUrl(selectedNode)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-sm text-[#58a6ff] hover:text-[#58a6ff]/80 transition-colors"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  View on GitHub
+                </a>
+              )}
+
+              {selectedNode?.children && selectedNode.children.length > 0 && (
+                <div className="mt-4">
+                  <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+                    <FolderIcon className="h-4 w-4 text-[#58a6ff]" />
+                    Contents
+                  </h4>
+                  <div className="space-y-1 max-h-[300px] overflow-y-auto pr-2">
+                    {selectedNode.children.map((child) => (
+                      <button
+                        key={child.id}
+                        className="w-full text-left text-sm flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 transition-colors"
+                        onClick={() => setSelectedNode(child)}
+                      >
+                        {child.type === "folder" ? (
+                          <FolderIcon className="h-4 w-4 text-[#58a6ff]" />
+                        ) : (
+                          <FileIcon className="h-4 w-4 text-[#c9d1d9]" />
+                        )}
+                        <span className="truncate">{child.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {selectedNode?.type === "file" && (
+                <div className="mt-4">
+                  <h4 className="text-sm font-medium mb-2">File Information</h4>
+                  <div className="text-sm text-muted-foreground">
+                    Click on the file in the visualization to view its contents.
+                  </div>
+                </div>
+              )}
+            </div>
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
