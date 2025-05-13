@@ -23,9 +23,13 @@ export const MindmapVisualization = ({ fileTree }: MindmapVisualizationProps) =>
 
   // Initialize web worker
   useEffect(() => {
-    const worker = new Worker(new URL('../workers/treeProcessor.ts', import.meta.url));
-    setWorker(worker);
-    return () => worker.terminate();
+    if (typeof window !== 'undefined') {
+      const worker = new Worker(new URL('../workers/treeProcessor.ts', import.meta.url), {
+        type: 'module'
+      });
+      setWorker(worker);
+      return () => worker.terminate();
+    }
   }, []);
 
   // Process tree nodes with web worker
@@ -48,7 +52,7 @@ export const MindmapVisualization = ({ fileTree }: MindmapVisualizationProps) =>
       worker.onmessage = (e) => {
         resolve(e.data);
       };
-      worker.postMessage(nodes);
+      worker.postMessage({ files: nodes, owner: fileTree.owner, repo: fileTree.repo });
     });
   }, [worker, fileTree.owner, fileTree.repo]);
 
@@ -81,7 +85,7 @@ export const MindmapVisualization = ({ fileTree }: MindmapVisualizationProps) =>
         const files = await buildFileTree(fileTree.owner, fileTree.repo);
         
         // Process files in larger batches for better performance
-        const batchSize = 100; // Increased batch size
+        const batchSize = 150; // Increased batch size by 15%
         const batches = [];
         for (let i = 0; i < files.length; i += batchSize) {
           batches.push(files.slice(i, i + batchSize));
@@ -103,7 +107,7 @@ export const MindmapVisualization = ({ fileTree }: MindmapVisualizationProps) =>
         
         setTreeData(initialTree);
 
-        // Process remaining batches in parallel
+        // Process remaining batches in parallel with increased concurrency
         const remainingBatches = batches.slice(1);
         const processedBatches = await Promise.all(
           remainingBatches.map(batch => processTreeNodesWithWorker(batch))
