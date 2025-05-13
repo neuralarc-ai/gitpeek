@@ -141,7 +141,7 @@ export function StatisticsTab({ stats, languages, repoData, isLoading }: Statist
             <CardDescription>Breakdown of programming languages used</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[160px] -mx-2">
+            <div className="h-[300px] -mx-2">
               <ChartContainer
                 config={{
                   value: {
@@ -156,7 +156,7 @@ export function StatisticsTab({ stats, languages, repoData, isLoading }: Statist
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart
                     data={languageData}
-                    margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                    margin={{ top: 10, right: 30, left: 0, bottom: 30 }}
                   >
                     <defs>
                       <linearGradient id="languageAreaGradient" x1="0" y1="0" x2="0" y2="1">
@@ -179,17 +179,6 @@ export function StatisticsTab({ stats, languages, repoData, isLoading }: Statist
                 </ResponsiveContainer>
               </ChartContainer>
             </div>
-            <div className="space-y-2 mt-4">
-              {languageData.slice(0, 5).map((lang, i) => (
-                <div key={lang.name} className="space-y-1">
-                  <div className="flex justify-between text-xs">
-                    <span>{lang.name}</span>
-                    <span className="text-muted-foreground">{lang.percentage}%</span>
-                  </div>
-                  <Progress value={lang.percentage} className="h-2" />
-                </div>
-              ))}
-            </div>
           </CardContent>
         </Card>
         
@@ -200,7 +189,7 @@ export function StatisticsTab({ stats, languages, repoData, isLoading }: Statist
             <CardDescription>Weekly commit frequency over time</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[160px] -mx-2">
+            <div className="h-[300px] -mx-2">
               <ChartContainer
                 config={{
                   commits: {
@@ -213,7 +202,7 @@ export function StatisticsTab({ stats, languages, repoData, isLoading }: Statist
                 }}
               >
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={commitActivityData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                  <AreaChart data={commitActivityData} margin={{ top: 10, right: 30, left: 0, bottom: 30 }}>
                     <defs>
                       <linearGradient id="commitActivityGradient" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8} />

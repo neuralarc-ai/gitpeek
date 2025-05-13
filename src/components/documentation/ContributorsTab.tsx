@@ -2,7 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Contributor } from "@/services/githubService";
-import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ZAxis } from "recharts";
+import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { Users } from "lucide-react";
 
 interface ContributorsTabProps {
@@ -37,24 +37,29 @@ export function ContributorsTab({ contributors, isLoading }: ContributorsTabProp
   // Sort contributors by contributions (descending)
   const sortedContributors = [...contributors].sort((a, b) => b.contributions - a.contributions);
   
-  // Prepare data for bubble chart
+  // Colors for the chart
+  const COLORS = ['#3b82f6', '#10b981', '#a855f7', '#f59e0b', '#ef4444', '#6b7280'];
+  
+  // Prepare data for pie chart
   const prepareContributionData = () => {
     const topContributors = sortedContributors.slice(0, 5);
     const othersContributions = sortedContributors.slice(5).reduce((sum, c) => sum + c.contributions, 0);
     
-    return topContributors.map((c, index) => ({
-      name: c.login,
-      x: index + 1, // Position on x-axis
-      y: c.contributions, // Size of bubble
-      z: c.contributions, // Size of bubble
-      others: othersContributions
-    }));
+    return [
+      ...topContributors.map((c, index) => ({
+        name: c.login,
+        value: c.contributions,
+        fill: COLORS[index % COLORS.length]
+      })),
+      {
+        name: "Others",
+        value: othersContributions,
+        fill: COLORS[5]
+      }
+    ];
   };
   
   const contributionData = prepareContributionData();
-  
-  // Colors for the chart
-  const COLORS = ['#3b82f6', '#10b981', '#a855f7', '#f59e0b', '#ef4444', '#6b7280'];
   
   // Calculate contribution statistics
   const totalContributions = sortedContributors.reduce((sum, c) => sum + c.contributions, 0);
@@ -81,47 +86,38 @@ export function ContributorsTab({ contributors, isLoading }: ContributorsTabProp
             <div className="h-[300px]">
               <ChartContainer
                 config={{
-                  contributions: { color: COLORS[0] },
-                  others: { color: COLORS[5] }
+                  value: { color: COLORS[0] }
                 }}
               >
                 <ResponsiveContainer width="100%" height="100%">
-                  <ScatterChart
-                    margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-                    <XAxis 
-                      type="number" 
-                      dataKey="x" 
-                      name="Rank" 
-                      stroke="#aaa"
-                      domain={[0, 6]}
-                      tickCount={6}
-                    />
-                    <YAxis 
-                      type="number" 
-                      dataKey="y" 
-                      name="Contributions" 
-                      stroke="#aaa"
-                    />
-                    <ZAxis 
-                      type="number" 
-                      dataKey="z" 
-                      range={[50, 400]} 
-                      name="Size" 
-                    />
+                  <PieChart>
+                    <Pie
+                      data={contributionData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={80}
+                      paddingAngle={2}
+                      dataKey="value"
+                      nameKey="name"
+                    >
+                      {contributionData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.fill} />
+                      ))}
+                    </Pie>
                     <Tooltip
                       content={({ active, payload }) => {
                         if (active && payload && payload.length) {
                           const data = payload[0].payload;
+                          const percentage = Math.round((data.value / totalContributions) * 100);
                           return (
                             <div className="bg-background border border-border p-2 rounded shadow-lg">
                               <p className="font-medium">{data.name}</p>
                               <p className="text-sm text-muted-foreground">
-                                Contributions: {data.y}
+                                Contributions: {data.value}
                               </p>
                               <p className="text-sm text-muted-foreground">
-                                Others: {data.others}
+                                Percentage: {percentage}%
                               </p>
                             </div>
                           );
@@ -129,24 +125,15 @@ export function ContributorsTab({ contributors, isLoading }: ContributorsTabProp
                         return null;
                       }}
                     />
-                    <Legend />
-                    <Scatter
-                      name="Contributions"
-                      data={contributionData}
-                      fill={COLORS[0]}
-                    >
-                      {contributionData.map((entry, index) => (
-                        <circle
-                          key={`cell-${index}`}
-                          cx={entry.x}
-                          cy={entry.y}
-                          r={Math.sqrt(entry.z) / 2}
-                          fill={COLORS[index % COLORS.length]}
-                          fillOpacity={0.6}
-                        />
-                      ))}
-                    </Scatter>
-                  </ScatterChart>
+                    <Legend 
+                      layout="vertical" 
+                      verticalAlign="middle" 
+                      align="right"
+                      formatter={(value, entry) => (
+                        <span className="text-sm">{value}</span>
+                      )}
+                    />
+                  </PieChart>
                 </ResponsiveContainer>
               </ChartContainer>
             </div>
