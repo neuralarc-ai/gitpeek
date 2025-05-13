@@ -23,45 +23,50 @@ export function MindmapVisualization({ owner, repo, initialData, isLoading }: Mi
   const [treeData, setTreeData] = useState<any>(initialData || null);
   const [loading, setLoading] = useState(!initialData);
   const [error, setError] = useState<string | null>(null);
+  const [loadingProgress, setLoadingProgress] = useState(0);
   const [isProgressiveLoading, setIsProgressiveLoading] = useState(false);
 
   // Generate cache key
   const cacheKey = useMemo(() => `${owner}/${repo}`, [owner, repo]);
-
-  // Memoized tree node conversion
-  const fileToTreeNode = useCallback((file: any): any => {
-    if (file.type === "dir") {
-      return {
-        name: file.name,
-        children: file.children ? file.children.map(fileToTreeNode) : [],
-      };
-    }
-    return { name: file.name };
-  }, []);
 
   // Process tree nodes with Web Worker
   const processTreeNodesWithWorker = useCallback(async (files: any[]): Promise<any[]> => {
     return new Promise((resolve) => {
       if (!worker) {
         // Fallback to synchronous processing if worker is not available
-        resolve(files.map(fileToTreeNode));
+        resolve(files.map(file => ({
+          name: file.name,
+          children: file.type === "dir" ? (file.children || []) : undefined
+        })));
         return;
       }
 
+      const processedChunks: any[] = [];
+      
       worker.onmessage = (e) => {
-        resolve(e.data);
+        const { type, data, progress } = e.data;
+        
+        if (type === 'progress') {
+          processedChunks.push(...data);
+          setLoadingProgress(progress);
+        } else if (type === 'complete') {
+          resolve(processedChunks);
+        }
       };
 
-      worker.postMessage({ files, repo });
+      worker.postMessage({ 
+        files, 
+        repo,
+        chunkSize: 25 // Smaller chunks for more frequent updates
+      });
     });
-  }, [fileToTreeNode, repo]);
+  }, [repo]);
 
   useEffect(() => {
     // If we have initial data, use it immediately
     if (initialData) {
       setTreeData(initialData);
       setLoading(false);
-      // Store in cache with timestamp
       treeDataCache.set(cacheKey, { data: initialData, timestamp: Date.now() });
       return;
     }
@@ -77,47 +82,47 @@ export function MindmapVisualization({ owner, repo, initialData, isLoading }: Mi
     const fetchTreeData = async () => {
       setLoading(true);
       setError(null);
+      setLoadingProgress(0);
+      
       try {
         setIsProgressiveLoading(true);
         
         // Fetch the full recursive file tree
         const files = await buildFileTree(owner, repo);
         
-        // Process tree nodes in chunks with Web Worker
-        const BATCH_SIZE = 100; // Increased batch size
-        const chunks = [];
-        for (let i = 0; i < files.length; i += BATCH_SIZE) {
-          chunks.push(files.slice(i, i + BATCH_SIZE));
-        }
-
-        // Process first chunk immediately for instant display
-        const firstChunk = await processTreeNodesWithWorker(chunks[0]);
+        // Process first batch immediately for instant display
+        const firstBatch = files.slice(0, 50);
+        const processedFirstBatch = await processTreeNodesWithWorker(firstBatch);
+        
         setTreeData({
           name: repo,
-          children: firstChunk
+          children: processedFirstBatch
         });
 
-        // Process remaining chunks in parallel
-        const remainingChunks = chunks.slice(1);
-        const processedChunks = await Promise.all(
-          remainingChunks.map(chunk => processTreeNodesWithWorker(chunk))
-        );
+        // Process remaining files in the background
+        const remainingFiles = files.slice(50);
+        const processedRemaining = await processTreeNodesWithWorker(remainingFiles);
 
-        // Combine all chunks
-        const allChildren = [...firstChunk, ...processedChunks.flat()];
-        const finalTree = {
+        // Update tree with all processed data
+        setTreeData(prev => ({
           name: repo,
-          children: allChildren
-        };
+          children: [...(prev?.children || []), ...processedRemaining]
+        }));
 
-        setTreeData(finalTree);
-        // Store in cache with timestamp
-        treeDataCache.set(cacheKey, { data: finalTree, timestamp: Date.now() });
+        // Cache the complete tree
+        treeDataCache.set(cacheKey, {
+          data: {
+            name: repo,
+            children: [...processedFirstBatch, ...processedRemaining]
+          },
+          timestamp: Date.now()
+        });
       } catch (e: any) {
         setError(e.message || "Unknown error");
       } finally {
         setLoading(false);
         setIsProgressiveLoading(false);
+        setLoadingProgress(1);
       }
     };
 
@@ -161,8 +166,9 @@ export function MindmapVisualization({ owner, repo, initialData, isLoading }: Mi
         repo={repo}
       />
       {isProgressiveLoading && (
-        <div className="absolute bottom-4 right-4 bg-background/80 px-3 py-1 rounded-full text-sm">
-          Loading tree structure...
+        <div className="absolute bottom-4 right-4 bg-background/80 px-3 py-1 rounded-full text-sm flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-primary animate-pulse"></div>
+          Loading tree structure... {Math.round(loadingProgress * 100)}%
         </div>
       )}
     </div>

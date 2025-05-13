@@ -87,26 +87,23 @@ const FileTreeNode = ({ node, level, onToggle, expandedPaths, onFileClick, expan
 
         <div className="flex items-center gap-2">
           {!isFolder && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 px-2 opacity-70 hover:opacity-100"
-              onClick={handleGitHubClick}
-              title="View on GitHub"
-            >
-              <ExternalLink className="h-3 w-3 mr-1" />
-              GitHub
-            </Button>
-          )}
-          {!isFolder && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              {node.size && (
-                <span>{formatFileSize(node.size)}</span>
-              )}
-              {node.lastModified && (
-                <span>{new Date(node.lastModified).toLocaleDateString()}</span>
-              )}
-            </div>
+            <>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                {node.size && (
+                  <span className="min-w-[60px] text-right">{formatFileSize(node.size)}</span>
+                )}
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 opacity-70 hover:opacity-100"
+                onClick={handleGitHubClick}
+                title="View on GitHub"
+              >
+                <ExternalLink className="h-3 w-3 mr-1" />
+                GitHub
+              </Button>
+            </>
           )}
         </div>
       </div>

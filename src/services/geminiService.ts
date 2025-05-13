@@ -1,6 +1,7 @@
 import { getApiKey } from "@/utils/apiKeys";
 import { toast } from "@/components/ui/sonner";
 import { RepoData, RepoLanguages, Contributor } from "./githubService";
+import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
 
 interface AnalysisResult {
   overview: string;
@@ -8,6 +9,38 @@ interface AnalysisResult {
   installation: string;
   codeStructure: string;
 }
+
+// Initialize the Gemini API with safety settings
+const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY || "");
+
+// Configure the model with safety settings
+const modelConfig = {
+  model: "gemini-2.0-flash",
+  generationConfig: {
+    temperature: 0.7,
+    topK: 40,
+    topP: 0.95,
+    maxOutputTokens: 2048,
+  },
+  safetySettings: [
+    {
+      category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+      threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+    },
+    {
+      category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+      threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+    },
+    {
+      category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+      threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+    },
+    {
+      category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+      threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+    },
+  ],
+};
 
 export const getGeminiHeaders = () => {
   const geminiKey = getApiKey('gemini');
@@ -26,11 +59,7 @@ export const analyzeRepository = async (
   contributors?: Contributor[] | null
 ): Promise<AnalysisResult | null> => {
   try {
-    const geminiKey = getApiKey('gemini');
-    if (!geminiKey) {
-      toast.error("Gemini API key is missing");
-      return null;
-    }
+    const model = genAI.getGenerativeModel(modelConfig);
 
     // Create a summary of contributors if available
     let contributorsSummary = "";
@@ -69,44 +98,15 @@ export const analyzeRepository = async (
         Keep each section focused and informative for developers looking to understand this repository.
       `;
 
-    const response = await fetch(
-      "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": geminiKey,
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: prompt,
-                },
-              ],
-            },
-          ],
-          generationConfig: {
-            temperature: 0.2,
-            maxOutputTokens: 1500,
-          },
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const analysisText = data.candidates[0].content.parts[0].text;
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
     
     // Parse sections using regex pattern for markdown headers
-    const overviewMatch = analysisText.match(/(?:^|\n)1\.\s+\*\*OVERVIEW\*\*:?([\s\S]*?)(?=\n\d\.\s+\*\*|\n*$)/);
-    const architectureMatch = analysisText.match(/(?:^|\n)2\.\s+\*\*ARCHITECTURE\*\*:?([\s\S]*?)(?=\n\d\.\s+\*\*|\n*$)/);
-    const installationMatch = analysisText.match(/(?:^|\n)3\.\s+\*\*INSTALLATION\*\*:?([\s\S]*?)(?=\n\d\.\s+\*\*|\n*$)/);
-    const codeStructureMatch = analysisText.match(/(?:^|\n)4\.\s+\*\*CODE STRUCTURE\*\*:?([\s\S]*?)(?=\n\d\.\s+\*\*|\n*$)/);
+    const overviewMatch = text.match(/(?:^|\n)1\.\s+\*\*OVERVIEW\*\*:?([\s\S]*?)(?=\n\d\.\s+\*\*|\n*$)/);
+    const architectureMatch = text.match(/(?:^|\n)2\.\s+\*\*ARCHITECTURE\*\*:?([\s\S]*?)(?=\n\d\.\s+\*\*|\n*$)/);
+    const installationMatch = text.match(/(?:^|\n)3\.\s+\*\*INSTALLATION\*\*:?([\s\S]*?)(?=\n\d\.\s+\*\*|\n*$)/);
+    const codeStructureMatch = text.match(/(?:^|\n)4\.\s+\*\*CODE STRUCTURE\*\*:?([\s\S]*?)(?=\n\d\.\s+\*\*|\n*$)/);
     
     return {
       overview: overviewMatch ? overviewMatch[1].trim() : "Analysis unavailable",
@@ -120,3 +120,46 @@ export const analyzeRepository = async (
     return null;
   }
 };
+
+export async function askGemini(question: string, context: any) {
+  try {
+    const model = genAI.getGenerativeModel(modelConfig);
+
+    // Get file structure information
+    const fileStructure = context.repository.fileStructure || [];
+    const fileStructureInfo = fileStructure.length > 0 
+      ? `\nFile Structure:\n${fileStructure.map((file: any) => `- ${file.path} (${file.type})`).join('\n')}`
+      : '';
+
+    const prompt = `You are an AI assistant helping users understand a GitHub repository.
+    Repository Context:
+    - Name: ${context.repository.name}
+    - Owner: ${context.repository.owner}
+    - Description: ${context.repository.description}
+    - Languages: ${JSON.stringify(context.repository.languages)}
+    - Contributors: ${JSON.stringify(context.repository.contributors)}
+    - README: ${context.repository.readme}
+    ${fileStructureInfo}
+
+    Previous conversation:
+    ${context.conversation.map((msg: any) => `${msg.role}: ${msg.content}`).join('\n')}
+
+    User question: ${question}
+
+    Please provide a helpful and concise response based on the repository context. 
+    If the question is about finding a specific file or functionality:
+    1. Use the file structure information to locate relevant files
+    2. Explain the purpose and location of the files
+    3. If possible, suggest the most relevant files for the user's query
+    4. If the file structure is not available, explain what information would be needed to better answer the question
+
+    Keep your response focused on helping the user understand the repository structure and locate relevant files.`;
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    return response.text();
+  } catch (error) {
+    console.error("Error getting AI response:", error);
+    throw error;
+  }
+}

@@ -47,7 +47,7 @@ export function ContributorsTab({ contributors, isLoading }: ContributorsTabProp
     
     return [
       ...topContributors.map((c, index) => ({
-        name: c.login,
+      name: c.login,
         value: c.contributions,
         fill: COLORS[index % COLORS.length]
       })),
@@ -132,7 +132,7 @@ export function ContributorsTab({ contributors, isLoading }: ContributorsTabProp
                       formatter={(value, entry) => (
                         <span className="text-sm">{value}</span>
                       )}
-                    />
+                        />
                   </PieChart>
                 </ResponsiveContainer>
               </ChartContainer>

@@ -9,6 +9,7 @@ export type GitHubFile = {
   type: "file" | "dir";
   sha: string;
   url: string;
+  size?: number;
   children?: GitHubFile[];
 };
 
@@ -60,6 +61,10 @@ export type RepoStats = {
   punchCard: [number, number, number][];
   branches: number;
 };
+
+// Cache for storing file tree data
+const fileTreeCache = new Map<string, { data: GitHubFile[]; timestamp: number }>();
+const CACHE_EXPIRATION = 5 * 60 * 1000; // 5 minutes
 
 // Fetch repository basic data
 export const fetchRepoData = async (owner: string, repo: string): Promise<RepoData | null> => {
@@ -248,37 +253,71 @@ export const fetchRepoContents = async (owner: string, repo: string, path: strin
     const data = await response.json();
     
     // Convert GitHub API response to our GitHubFile format
-    const files: GitHubFile[] = Array.isArray(data) 
-      ? data.map(item => ({
-          name: item.name,
-          path: item.path,
-          type: item.type === 'dir' ? 'dir' : 'file',
-          sha: item.sha,
-          url: item.url
-        }))
-      : [];
-    
-    // Sort files (directories first, then files - alphabetically within each group)
-    return files.sort((a, b) => {
-      if (a.type !== b.type) {
-        return a.type === 'dir' ? -1 : 1;
-      }
-      return a.name.localeCompare(b.name);
-    });
+    return Array.isArray(data) ? data.map(item => ({
+      name: item.name,
+      path: item.path,
+      type: item.type,
+      sha: item.sha,
+      url: item.url,
+      size: item.size,
+      children: item.type === 'dir' ? [] : undefined
+    })) : [];
   } catch (error) {
     console.error("Error fetching repo contents:", error);
-    toast.error("Failed to fetch repository files");
+    toast.error("Failed to fetch repository contents");
     return [];
   }
 };
 
 // Build a tree structure from flat file list (recursive)
 export const buildFileTree = async (owner: string, repo: string, path: string = ""): Promise<GitHubFile[]> => {
-  const files = await fetchRepoContents(owner, repo, path);
-  for (const file of files) {
-    if (file.type === 'dir') {
-      file.children = await buildFileTree(owner, repo, file.path);
+  try {
+    const cacheKey = `${owner}/${repo}/${path}`;
+    const cached = fileTreeCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CACHE_EXPIRATION) {
+      return cached.data;
     }
+
+    const files = await fetchRepoContents(owner, repo, path);
+    
+    // Process directories in parallel with chunking
+    const CHUNK_SIZE = 5; // Process 5 directories at a time
+    const directories = files.filter(file => file.type === 'dir');
+    const filesOnly = files.filter(file => file.type === 'file');
+    
+    const processedDirectories: GitHubFile[] = [];
+    for (let i = 0; i < directories.length; i += CHUNK_SIZE) {
+      const chunk = directories.slice(i, i + CHUNK_SIZE);
+      const processedChunk = await Promise.all(
+        chunk.map(async (dir) => {
+          const children = await buildFileTree(owner, repo, dir.path);
+          return {
+            ...dir,
+            children
+          };
+        })
+      );
+      processedDirectories.push(...processedChunk);
+    }
+
+    // Combine files and processed directories
+    const result = [...processedDirectories, ...filesOnly].sort((a, b) => {
+      if (a.type !== b.type) {
+        return a.type === 'dir' ? -1 : 1;
+      }
+      return a.name.localeCompare(b.name);
+    });
+
+    // Cache the result
+    fileTreeCache.set(cacheKey, {
+      data: result,
+      timestamp: Date.now()
+    });
+
+    return result;
+  } catch (error) {
+    console.error("Error building file tree:", error);
+    toast.error("Failed to build file tree");
+    return [];
   }
-  return files;
 };

@@ -6,6 +6,7 @@ import { fetchRepoData, fetchRepoLanguages, fetchRepoReadme, fetchRepoContributo
 import { analyzeRepository } from "@/services/geminiService";
 import { toast } from "@/components/ui/sonner";
 import { useLocation, useNavigate } from "react-router-dom";
+import { AIRepositoryAssistant } from "./AIRepositoryAssistant";
 
 // Lazy load documentation tabs
 const OverviewTab = lazy(() => import("./documentation/OverviewTab").then(module => ({ default: module.OverviewTab })));
@@ -264,40 +265,60 @@ export function TabNavigation({ owner, repo, onChangeTab, onAnalysisUpdate }: Ta
   ), [docTab, analysis, repoData, languages, stats, readme, contributors, isLoading]);
 
   return (
-    <Tabs defaultValue="visualization" className="w-full" onValueChange={handleTabChange}>
-      <div className="w-full flex justify-center px-4 py-2">
-        <TabsList className="grid grid-cols-2 w-full max-w-md">
-          <TabsTrigger value="visualization">Visualization</TabsTrigger>
-          <TabsTrigger value="documentation">Documentation</TabsTrigger>
+    <div className="w-full">
+      <Tabs defaultValue="mindmap" onValueChange={handleTabChange} className="w-full">
+        <TabsList className="w-full max-w-4xl mx-auto overflow-x-auto hide-scrollbar backdrop-blur-sm bg-background/60 border border-border/50 rounded-lg p-1 flex justify-center">
+          <div className="flex space-x-1">
+            <TabsTrigger value="mindmap" className="px-4 py-2">Mindmap</TabsTrigger>
+            <TabsTrigger value="documentation" className="px-4 py-2">Documentation</TabsTrigger>
+            <TabsTrigger value="files" className="px-4 py-2">Files</TabsTrigger>
+          </div>
         </TabsList>
-      </div>
-      
-      <TabsContent value="visualization" className="border-t border-gitpeek-border">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-          <div className="md:col-span-2 bg-gitpeek-card rounded-lg border border-gitpeek-border p-4 max-h-[calc(100vh-260px)] relative overflow-hidden">
-            <h3 className="text-lg font-medium mb-4">Repository Structure Visualization</h3>
-            <div className="h-[90%] relative">
-              <MindmapVisualization 
-                owner={owner}
-                repo={repo}
-                initialData={mindmapData}
-                isLoading={isLoading}
-              />
-            </div>
-          </div>
-          
-          <div className="bg-gitpeek-card rounded-lg border border-gitpeek-border p-4 max-h-[calc(100vh-268px)]">
-            <h3 className="text-lg font-medium mb-4">File Explorer</h3>
-            <div className="h-[90%]">
-              <FileExplorer owner={owner} repo={repo} />
-            </div>
-          </div>
-        </div>
-      </TabsContent>
-      
-      <TabsContent value="documentation" className="border-t border-gitpeek-border">
-        {documentationContent}
-      </TabsContent>
-    </Tabs>
+
+        <TabsContent value="mindmap">
+          <MindmapVisualization 
+            owner={owner}
+            repo={repo}
+            initialData={mindmapData}
+            isLoading={isLoading}
+          />
+        </TabsContent>
+
+        <TabsContent value="documentation">
+          {documentationContent}
+        </TabsContent>
+
+        <TabsContent value="files">
+          <FileExplorer owner={owner} repo={repo} />
+        </TabsContent>
+      </Tabs>
+
+      <AIRepositoryAssistant
+        owner={owner}
+        repo={repo}
+        repoData={repoData}
+        languages={languages}
+        contributors={contributors}
+        readme={readme}
+        fileStructure={mindmapData ? flattenFileTree(mindmapData) : []}
+      />
+    </div>
   );
+}
+
+// Helper function to flatten the file tree into an array
+function flattenFileTree(node: any, path: string = ''): any[] {
+  const currentPath = path ? `${path}/${node.name}` : node.name;
+  const result = [{
+    path: currentPath,
+    type: node.children ? 'directory' : 'file'
+  }];
+
+  if (node.children) {
+    node.children.forEach((child: any) => {
+      result.push(...flattenFileTree(child, currentPath));
+    });
+  }
+
+  return result;
 }
