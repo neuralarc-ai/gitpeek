@@ -9,10 +9,10 @@ import { Badge } from "@/components/ui/badge";
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { getFileIcon } from "@/lib/utils";
+import { FileTree } from "@/types/fileTree";
 
-interface FileExplorerProps {
-  owner: string;
-  repo: string;
+export interface FileExplorerProps {
+  fileTree: FileTree;
 }
 
 interface TreeNodeProps {
@@ -184,7 +184,7 @@ const FileTreeNode = ({ node, level, onToggle, expandedPaths, onFileClick, expan
   );
 };
 
-export function FileExplorer({ owner, repo }: FileExplorerProps) {
+export const FileExplorer = ({ fileTree }: FileExplorerProps) => {
   const [files, setFiles] = useState<GitHubFile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
@@ -201,13 +201,13 @@ export function FileExplorer({ owner, repo }: FileExplorerProps) {
       setIsLoading(true);
       try {
         // Fetch repository data to get the default branch
-        const repoData = await fetchRepoData(owner, repo);
+        const repoData = await fetchRepoData(fileTree.owner, fileTree.repo);
         if (repoData?.default_branch) {
           setDefaultBranch(repoData.default_branch);
         }
         
         // Load the file tree
-        const rootFiles = await buildFileTree(owner, repo);
+        const rootFiles = await buildFileTree(fileTree.owner, fileTree.repo);
         setFiles(rootFiles);
       } catch (error) {
         console.error('Error loading repository data:', error);
@@ -217,7 +217,7 @@ export function FileExplorer({ owner, repo }: FileExplorerProps) {
     };
     
     loadData();
-  }, [owner, repo]);
+  }, [fileTree.owner, fileTree.repo]);
 
   const handleToggle = (path: string) => {
     const newExpandedPaths = new Set(expandedPaths);
@@ -240,7 +240,7 @@ export function FileExplorer({ owner, repo }: FileExplorerProps) {
     setFileLoading(true);
     try {
       const token = localStorage.getItem('gitpeek_github_key') || import.meta.env.VITE_GITHUB_API_KEY;
-      const url = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
+      const url = `https://api.github.com/repos/${fileTree.owner}/${fileTree.repo}/contents/${path}`;
       const response = await fetch(url, {
         headers: {
           'Accept': 'application/vnd.github.v3.raw',
@@ -292,15 +292,15 @@ export function FileExplorer({ owner, repo }: FileExplorerProps) {
             fileContent={expandedFile === node.path ? fileContent : null}
             fileLoading={expandedFile === node.path ? fileLoading : false}
             searchQuery={searchQuery}
-            owner={owner}
-            repo={repo}
+            owner={fileTree.owner}
+            repo={fileTree.repo}
             defaultBranch={defaultBranch}
           />
         ))}
       </div>
     </Card>
   );
-}
+};
 
 // Helper functions
 function formatFileSize(bytes: number): string {

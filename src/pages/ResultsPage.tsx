@@ -1,15 +1,20 @@
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useSearchParams, useNavigate, useParams } from "react-router-dom";
 import { Logo } from "@/components/ui/logo";
 import { RepositoryHeader } from "@/components/RepositoryHeader";
 import { TabNavigation } from "@/components/TabNavigation";
+import { AIRepositoryAssistant } from "@/components/AIRepositoryAssistant";
 import { useState } from "react";
 
 const ResultsPage = () => {
   const [searchParams] = useSearchParams();
+  const { owner: routeOwner, repo: routeRepo } = useParams();
   const navigate = useNavigate();
-  const owner = searchParams.get("owner") || "";
-  const repo = searchParams.get("repo") || "";
+  
+  // Get owner and repo from either route params or search params
+  const owner = routeOwner || searchParams.get("owner") || "";
+  const repo = routeRepo || searchParams.get("repo") || "";
   const repoUrl = `https://github.com/${owner}/${repo}`;
+  
   const [analysis, setAnalysis] = useState({
     overview: null,
     architecture: null,
@@ -50,6 +55,18 @@ const ResultsPage = () => {
           Gitpeek &copy; 2025 | Developer-focused GitHub repository analyzer
         </div>
       </footer>
+
+      {/* Global AI Assistant */}
+      <AIRepositoryAssistant 
+        fileTree={{
+          name: repo,
+          owner,
+          repo,
+          type: 'directory',
+          path: '',
+          children: []
+        }}
+      />
     </div>
   );
 };

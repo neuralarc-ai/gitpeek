@@ -1,6 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Check, Folder, Info, PieChart as PieChartIcon, Zap } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, XAxis, YAxis, Bar } from "recharts";
+import { FileTree } from "@/types/fileTree";
 
 // Mock data for demo (replace with real props/data as needed)
 const mockLanguages = {
@@ -20,7 +21,7 @@ const COLORS = ["#3b82f6", "#10b981", "#a855f7", "#f59e0b", "#ef4444", "#6b7280"
 
 interface CodeTabProps {
   architecture: string | null;
-  codeStructure: string | null;
+  codeStructure: FileTree | undefined;
   isLoading: boolean;
 }
 

@@ -160,18 +160,31 @@ export function StatisticsTab({ stats, languages, repoData, isLoading }: Statist
                   >
                     <defs>
                       <linearGradient id="languageAreaGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.7} />
-                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.2} />
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8} />
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1} />
                       </linearGradient>
                     </defs>
-                    <XAxis dataKey="name" stroke="#aaa" />
-                    <YAxis stroke="#aaa" />
-                    <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-                    <Tooltip content={<ChartTooltipContent />} />
+                    <XAxis 
+                      dataKey="name" 
+                      stroke="#aaa" 
+                      tick={{ fill: '#aaa' }}
+                      axisLine={{ stroke: '#444' }}
+                    />
+                    <YAxis 
+                      stroke="#aaa" 
+                      tick={{ fill: '#aaa' }}
+                      axisLine={{ stroke: '#444' }}
+                    />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#444" opacity={0.3} />
+                    <Tooltip 
+                      content={<ChartTooltipContent />}
+                      cursor={{ fill: 'rgba(59, 130, 246, 0.1)' }}
+                    />
                     <Area
                       type="monotone"
                       dataKey="value"
                       stroke="#3b82f6"
+                      strokeWidth={2}
                       fillOpacity={1}
                       fill="url(#languageAreaGradient)"
                     />
@@ -206,17 +219,30 @@ export function StatisticsTab({ stats, languages, repoData, isLoading }: Statist
                     <defs>
                       <linearGradient id="commitActivityGradient" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8} />
-                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1} />
                       </linearGradient>
                     </defs>
-                    <XAxis dataKey="week" stroke="#aaa" />
-                    <YAxis stroke="#aaa" />
-                    <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-                    <Tooltip content={<ChartTooltipContent />} />
+                    <XAxis 
+                      dataKey="week" 
+                      stroke="#aaa" 
+                      tick={{ fill: '#aaa' }}
+                      axisLine={{ stroke: '#444' }}
+                    />
+                    <YAxis 
+                      stroke="#aaa" 
+                      tick={{ fill: '#aaa' }}
+                      axisLine={{ stroke: '#444' }}
+                    />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#444" opacity={0.3} />
+                    <Tooltip 
+                      content={<ChartTooltipContent />}
+                      cursor={{ fill: 'rgba(59, 130, 246, 0.1)' }}
+                    />
                     <Area
                       type="monotone"
                       dataKey="commits"
                       stroke="#3b82f6"
+                      strokeWidth={2}
                       fillOpacity={1}
                       fill="url(#commitActivityGradient)"
                     />

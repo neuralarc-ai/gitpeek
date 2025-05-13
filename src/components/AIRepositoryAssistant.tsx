@@ -9,15 +9,10 @@ import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import type { SyntaxHighlighterProps } from "react-syntax-highlighter";
+import { FileTree } from "@/types/fileTree";
 
-interface AIRepositoryAssistantProps {
-  owner: string;
-  repo: string;
-  repoData: any;
-  languages: any;
-  contributors: any;
-  readme: any;
-  fileStructure: any[];
+export interface AIRepositoryAssistantProps {
+  fileTree: FileTree;
 }
 
 interface Message {
@@ -26,7 +21,7 @@ interface Message {
   timestamp: Date;
 }
 
-export function AIRepositoryAssistant({ owner, repo, repoData, languages, contributors, readme, fileStructure }: AIRepositoryAssistantProps) {
+export const AIRepositoryAssistant = ({ fileTree }: AIRepositoryAssistantProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -120,13 +115,13 @@ export function AIRepositoryAssistant({ owner, repo, repoData, languages, contri
     try {
       const context = {
         repository: {
-          name: repo,
-          owner,
-          description: repoData?.description,
-          languages,
-          contributors,
-          readme,
-          fileStructure
+          name: fileTree.name,
+          owner: fileTree.owner,
+          description: fileTree.description,
+          languages: fileTree.languages,
+          contributors: fileTree.contributors,
+          readme: fileTree.readme,
+          fileStructure: fileTree.fileStructure
         },
         conversation: messages
       };
@@ -156,7 +151,7 @@ export function AIRepositoryAssistant({ owner, repo, repoData, languages, contri
   };
 
   return (
-    <>
+    <div className="w-full h-[600px]">
       {/* Floating button with glassmorphism effect */}
       <Button
         onClick={() => setIsOpen(true)}
@@ -271,6 +266,6 @@ export function AIRepositoryAssistant({ owner, repo, repoData, languages, contri
           </div>
         </div>
       )}
-    </>
+    </div>
   );
-} 
+}; 

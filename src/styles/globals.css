@@ -1,0 +1,437 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 240 10% 3.9%;
+    --background-muted: 240 10% 5%;
+    --background-glass: 240 10% 3.9% / 0.4;
+    
+    --foreground: 0 0% 98%;
+    --foreground-muted: 240 5% 65%;
+    
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --card-muted: 240 10% 5%;
+    --card-glass: 240 10% 3.9% / 0.4;
+    
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    
+    --primary: 240 5.9% 10%;
+    --primary-foreground: 0 0% 98%;
+    --primary-muted: 240 5.9% 10% / 0.8;
+    --primary-hover: 240 5.9% 15%;
+    
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --accent-muted: 240 3.7% 15.9% / 0.8;
+    
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    
+    --border: 240 3.7% 15.9%;
+    --border-muted: 240 3.7% 15.9% / 0.5;
+    --border-glass: 240 3.7% 15.9% / 0.2;
+    
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+    
+    --radius: 0.75rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+/* Glassmorphism Effects */
+.glass {
+  @apply backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+.glass-card {
+  @apply rounded-xl backdrop-blur-md bg-card/40 border border-white/20 shadow-lg;
+}
+
+.glass-button {
+  @apply backdrop-blur-md bg-white/10 hover:bg-white/20 border border-white/20 transition-all duration-300;
+}
+
+.glass-input {
+  @apply backdrop-blur-md bg-white/10 border-white/20 focus:border-primary/50;
+}
+
+/* Animations */
+@keyframes float {
+  0% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+  100% {
+    transform: translateY(0px);
+  }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-background/50;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-white/10 rounded-full hover:bg-white/20 transition-colors;
+}
+
+/* Selection */
+::selection {
+  @apply bg-primary/20 text-primary-foreground;
+}
+
+/* Focus Styles */
+:focus-visible {
+  @apply outline-none ring-2 ring-primary/50 ring-offset-2 ring-offset-background;
+}
+
+/* Loading States */
+.loading {
+  @apply animate-pulse bg-white/5;
+}
+
+/* Transitions */
+.transition-all {
+  @apply transition-all duration-300 ease-in-out;
+}
+
+/* Hover Effects */
+.hover-lift {
+  @apply transition-transform duration-200 hover:scale-[1.02] active:scale-[0.98];
+}
+
+/* Gradient Text */
+.gradient-text {
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/60;
+}
+
+/* Glass Border */
+.glass-border {
+  @apply border border-white/20 hover:border-primary/50 transition-colors duration-300;
+}
+
+/* Glass Shadow */
+.glass-shadow {
+  @apply shadow-lg shadow-black/5 hover:shadow-primary/10 transition-shadow duration-300;
+}
+
+/* Glass Background */
+.glass-bg {
+  @apply bg-gradient-to-b from-background/50 to-background/30;
+}
+
+/* Glass Card */
+.glass-card {
+  @apply rounded-xl backdrop-blur-md bg-card/40 border border-white/20 shadow-lg hover:border-primary/50 hover:shadow-primary/10 transition-all duration-300;
+}
+
+/* Glass Button */
+.glass-button {
+  @apply rounded-lg backdrop-blur-md bg-white/10 hover:bg-white/20 border border-white/20 transition-all duration-300 hover:border-primary/50;
+}
+
+/* Glass Input */
+.glass-input {
+  @apply rounded-lg backdrop-blur-md bg-white/10 border-white/20 focus:border-primary/50 transition-all duration-300;
+}
+
+/* Glass Modal */
+.glass-modal {
+  @apply rounded-xl backdrop-blur-xl bg-background/60 border border-white/20 shadow-2xl;
+}
+
+/* Glass Navigation */
+.glass-nav {
+  @apply backdrop-blur-md bg-background/40 border-b border-white/20;
+}
+
+/* Glass Tree */
+.glass-tree {
+  @apply backdrop-blur-sm bg-white/5 border border-white/10 hover:border-primary/30;
+}
+
+/* Glass Badge */
+.glass-badge {
+  @apply rounded-full backdrop-blur-sm bg-white/10 border border-white/20;
+}
+
+/* Glass Tooltip */
+.glass-tooltip {
+  @apply rounded-lg backdrop-blur-md bg-background/80 border border-white/20 shadow-lg;
+}
+
+/* Glass Dropdown */
+.glass-dropdown {
+  @apply rounded-lg backdrop-blur-md bg-background/80 border border-white/20 shadow-lg;
+}
+
+/* Glass Alert */
+.glass-alert {
+  @apply rounded-lg backdrop-blur-md bg-background/80 border border-white/20 shadow-lg;
+}
+
+/* Glass Progress */
+.glass-progress {
+  @apply rounded-full backdrop-blur-sm bg-white/10 border border-white/20;
+}
+
+/* Glass Tabs */
+.glass-tabs {
+  @apply backdrop-blur-md bg-background/40 border-b border-white/20;
+}
+
+/* Glass Accordion */
+.glass-accordion {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass Carousel */
+.glass-carousel {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass Calendar */
+.glass-calendar {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass Date Picker */
+.glass-date-picker {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass Time Picker */
+.glass-time-picker {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass Color Picker */
+.glass-color-picker {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass File Upload */
+.glass-file-upload {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass Image Upload */
+.glass-image-upload {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass Video Upload */
+.glass-video-upload {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass Audio Upload */
+.glass-audio-upload {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass Document Upload */
+.glass-document-upload {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass Code Editor */
+.glass-code-editor {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass Terminal */
+.glass-terminal {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass Console */
+.glass-console {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass Log Viewer */
+.glass-log-viewer {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass Data Grid */
+.glass-data-grid {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass Chart */
+.glass-chart {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass Graph */
+.glass-graph {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass Map */
+.glass-map {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass Timeline */
+.glass-timeline {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass Kanban */
+.glass-kanban {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass Calendar */
+.glass-calendar {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass Gantt */
+.glass-gantt {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass Mind Map */
+.glass-mindmap {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass Flow Chart */
+.glass-flowchart {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass Network Graph */
+.glass-network {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass Tree View */
+.glass-treeview {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass File Explorer */
+.glass-file-explorer {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass Code Editor */
+.glass-code-editor {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass Terminal */
+.glass-terminal {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass Console */
+.glass-console {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass Log Viewer */
+.glass-log-viewer {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass Data Grid */
+.glass-data-grid {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass Chart */
+.glass-chart {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass Graph */
+.glass-graph {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass Map */
+.glass-map {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass Timeline */
+.glass-timeline {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass Kanban */
+.glass-kanban {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass Calendar */
+.glass-calendar {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass Gantt */
+.glass-gantt {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass Mind Map */
+.glass-mindmap {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass Flow Chart */
+.glass-flowchart {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass Network Graph */
+.glass-network {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass Tree View */
+.glass-treeview {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+}
+
+/* Glass File Explorer */
+.glass-file-explorer {
+  @apply rounded-lg backdrop-blur-md bg-background/40 border border-white/20;
+} 

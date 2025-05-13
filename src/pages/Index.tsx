@@ -1,20 +1,23 @@
 import { Logo } from "@/components/ui/logo";
 import { RepoInput } from "@/components/RepoInput";
 import { Button } from "@/components/ui/button";
-import { Github, Star, GitFork, Users, Code, BookOpen } from "lucide-react";
+import { Github, Star, GitFork, Users, Code, BookOpen, Sparkles } from "lucide-react";
+import { glassmorphism, layout, typography } from "@/styles/design-system";
 
 const Index = () => {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 md:p-8 bg-gradient-to-b from-background to-background/95">
       <div className="w-full max-w-4xl mx-auto flex flex-col items-center">
-        <div className="mb-12 flex flex-col items-center gap-4">
+        <div className="mb-12 flex flex-col items-center gap-4 animate-float">
           <Logo size="xlarge" />
-          <h1 className="text-2xl md:text-3xl text-center max-w-md font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/60">
+          <h1 className={`${typography.h1} text-center max-w-md bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/60`}>
             Dive Into GitHub Repositories
           </h1>
         </div>
         
-        <RepoInput />
+        <div className={`${glassmorphism.card.base} ${glassmorphism.card.hover} w-full p-6`}>
+          <RepoInput />
+        </div>
         
         <div className="mt-12 text-center text-muted-foreground text-sm">
           <p>Enter a GitHub repository URL to analyze its structure, architecture, and documentation.</p>
@@ -22,8 +25,8 @@ const Index = () => {
         </div>
 
         {/* GitHub Features Section */}
-        <div className="mt-16 w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <div className="p-6 rounded-xl bg-card/50 backdrop-blur-sm border border-border/50 hover:border-primary/50 transition-colors">
+        <div className={`${layout.grid.base} ${layout.grid.cols[3]} mt-16 w-full`}>
+          <div className={`${glassmorphism.card.base} ${glassmorphism.card.hover} p-6`}>
             <div className="flex items-center gap-3 mb-3">
               <Code className="w-5 h-5 text-primary" />
               <h3 className="font-semibold">Code Analysis</h3>
@@ -33,7 +36,7 @@ const Index = () => {
             </p>
           </div>
 
-          <div className="p-6 rounded-xl bg-card/50 backdrop-blur-sm border border-border/50 hover:border-primary/50 transition-colors">
+          <div className={`${glassmorphism.card.base} ${glassmorphism.card.hover} p-6`}>
             <div className="flex items-center gap-3 mb-3">
               <BookOpen className="w-5 h-5 text-primary" />
               <h3 className="font-semibold">Documentation</h3>
@@ -43,7 +46,7 @@ const Index = () => {
             </p>
           </div>
 
-          <div className="p-6 rounded-xl bg-card/50 backdrop-blur-sm border border-border/50 hover:border-primary/50 transition-colors">
+          <div className={`${glassmorphism.card.base} ${glassmorphism.card.hover} p-6`}>
             <div className="flex items-center gap-3 mb-3">
               <Users className="w-5 h-5 text-primary" />
               <h3 className="font-semibold">Collaboration</h3>
@@ -54,27 +57,11 @@ const Index = () => {
           </div>
         </div>
 
-        {/* GitHub Stats */}
-        <div className="mt-12 w-full flex flex-wrap justify-center gap-6">
-          <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-card/50 backdrop-blur-sm border border-border/50">
-            <Star className="w-4 h-4 text-yellow-500" />
-            <span className="text-sm font-medium">1M+ Stars</span>
-          </div>
-          <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-card/50 backdrop-blur-sm border border-border/50">
-            <GitFork className="w-4 h-4 text-primary" />
-            <span className="text-sm font-medium">500K+ Forks</span>
-          </div>
-          <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-card/50 backdrop-blur-sm border border-border/50">
-            <Users className="w-4 h-4 text-primary" />
-            <span className="text-sm font-medium">100K+ Users</span>
-          </div>
-        </div>
-
         {/* GitHub Integration */}
         <div className="mt-12 flex flex-col items-center gap-4">
           <Button
             variant="outline"
-            className="gap-2 hover:bg-primary/10"
+            className={`${glassmorphism.button.secondary} gap-2`}
             onClick={() => window.open('https://github.com', '_blank')}
           >
             <Github className="w-4 h-4" />
@@ -83,6 +70,38 @@ const Index = () => {
           <p className="text-xs text-muted-foreground">
             Securely analyze your repositories with GitHub OAuth
           </p>
+        </div>
+
+        {/* AI Features Highlight */}
+        <div className={`${glassmorphism.card.base} ${glassmorphism.card.hover} mt-12 p-6 w-full`}>
+          <div className="flex items-center gap-3 mb-4">
+            <Sparkles className="w-5 h-5 text-primary" />
+            <h3 className="font-semibold">AI-Powered Features</h3>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex items-start gap-3">
+              <div className={`${glassmorphism.badge.primary} p-2`}>
+                <Code className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="font-medium text-sm">Smart Code Analysis</h4>
+                <p className="text-xs text-muted-foreground mt-1">
+                  AI-powered insights into code structure and patterns
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className={`${glassmorphism.badge.primary} p-2`}>
+                <BookOpen className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="font-medium text-sm">Auto Documentation</h4>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Generate comprehensive documentation automatically
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
