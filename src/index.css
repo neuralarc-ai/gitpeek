@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fustat:wght@200..800&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -26,16 +27,25 @@
     --input: 240 3.7% 15.9%;
     --ring: 199 89% 48%;
     --radius: 0.5rem;
+    font-family: "Fustat", sans-serif;
+    font-optical-sizing: auto;
+    font-weight: 500;
+    font-style: normal;
   }
 }
 
 @layer base {
   * {
     @apply border-border selection:bg-gitpeek-blue/10 selection:text-gitpeek-blue;
+    font-family: "Fustat", sans-serif;
+    font-optical-sizing: auto;
   }
   
   body {
     @apply bg-gitpeek-dark text-foreground antialiased;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
 
   #root {
@@ -128,4 +138,59 @@
 
 .gradient-text {
   @apply bg-gradient-to-r from-gitpeek-blue to-gitpeek-cyan bg-clip-text text-transparent;
+}
+
+/* Fustat font classes */
+.fustat-thin {
+  font-weight: 200;
+  font-style: normal;
+}
+
+.fustat-extralight {
+  font-weight: 300;
+  font-style: normal;
+}
+
+.fustat-light {
+  font-weight: 400;
+  font-style: normal;
+}
+
+.fustat-regular {
+  font-weight: 500;
+  font-style: normal;
+}
+
+.fustat-medium {
+  font-weight: 600;
+  font-style: normal;
+}
+
+.fustat-semibold {
+  font-weight: 700;
+  font-style: normal;
+}
+
+.fustat-bold {
+  font-weight: 800;
+  font-style: normal;
+}
+
+/* Specific element styles */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 700;
+}
+
+button, input, select, textarea {
+  font-weight: 500;
+}
+
+/* Add Safari-specific optimizations */
+@supports (-webkit-touch-callout: none) {
+  * {
+    -webkit-font-smoothing: antialiased;
+    -webkit-backface-visibility: hidden;
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+  }
 }

@@ -85,6 +85,13 @@ const glowAnimation = `
 }
 `;
 
+// Add font size calculation constants
+const MIN_FONT_SIZE = 8;
+const MAX_FONT_SIZE = 14;
+const MIN_ZOOM_LEVEL = 0.5;
+const MAX_ZOOM_LEVEL = 4;
+const MIN_NODE_DISTANCE = 30; // Minimum distance between nodes to prevent overlap
+
 export const MindmapTree: React.FC<MindmapTreeProps> = ({
   data,
   width = 1280,
@@ -361,6 +368,104 @@ export const MindmapTree: React.FC<MindmapTreeProps> = ({
     return {};
   };
 
+  // Add function to calculate optimal font size based on zoom and node density
+  const calculateFontSize = (globalScale: number, node: any, nodes: any[]) => {
+    // Base font size calculation based on zoom level
+    let fontSize = Math.max(
+      MIN_FONT_SIZE,
+      Math.min(MAX_FONT_SIZE, 12 / globalScale)
+    );
+
+    // Check for nearby nodes to prevent overlap
+    const nearbyNodes = nodes.filter((otherNode: any) => {
+      if (otherNode === node) return false;
+      const dx = otherNode.x - node.x;
+      const dy = otherNode.y - node.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      return distance < MIN_NODE_DISTANCE / globalScale;
+    });
+
+    // Reduce font size if there are nearby nodes
+    if (nearbyNodes.length > 0) {
+      fontSize = Math.max(MIN_FONT_SIZE, fontSize * 0.8);
+    }
+
+    return fontSize;
+  };
+
+  // Add function to calculate text width
+  const getTextWidth = (text: string, fontSize: number) => {
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    if (!context) return 0;
+    context.font = `${fontSize}px Fustat, sans-serif`;
+    return context.measureText(text).width;
+  };
+
+  // Update nodeCanvasObject function with improved text rendering
+  const nodeCanvasObject = (node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
+    const label = node.name;
+    const fontSize = calculateFontSize(globalScale, node, graphData.nodes);
+    ctx.font = `${fontSize}px Fustat, sans-serif`;
+    
+    // Calculate text width for overlap prevention
+    const textWidth = getTextWidth(label, fontSize);
+    const textHeight = fontSize;
+    
+    // Draw node icon
+    const iconSize = 16 / globalScale;
+    const iconX = node.x! - iconSize / 2;
+    const iconY = node.y! - iconSize / 2;
+    
+    // Apply enhanced glow effect for matching nodes
+    if (node.color === "#4ade80") {
+      ctx.shadowColor = "#4ade80";
+      ctx.shadowBlur = 20;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+    }
+    
+    // Draw node circle
+    if (node.type === "folder") {
+      ctx.fillStyle = "#58a6ff";
+      ctx.beginPath();
+      ctx.arc(node.x!, node.y!, 6 / globalScale, 0, 2 * Math.PI);
+      ctx.fill();
+    } else {
+      ctx.fillStyle = node.color === "#4ade80" ? "#4ade80" : "#c9d1d9";
+      ctx.beginPath();
+      ctx.arc(node.x!, node.y!, 4 / globalScale, 0, 2 * Math.PI);
+      ctx.fill();
+    }
+
+    // Reset shadow
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+
+    // Draw label with background for better readability
+    const labelY = node.y! + 15 / globalScale;
+    const padding = 4 / globalScale;
+    
+    // Draw semi-transparent background for text
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+    ctx.beginPath();
+    ctx.roundRect(
+      node.x! - textWidth / 2 - padding,
+      labelY - textHeight / 2 - padding,
+      textWidth + padding * 2,
+      textHeight + padding * 2,
+      4 / globalScale
+    );
+    ctx.fill();
+
+    // Draw text
+    ctx.fillStyle = node.color === "#4ade80" ? "#4ade80" : "#c9d1d9";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, node.x!, labelY);
+  };
+
   return (
     <div className="relative safari-optimized">
       <style>{safariStyles}</style>
@@ -384,7 +489,7 @@ export const MindmapTree: React.FC<MindmapTreeProps> = ({
                   handleSearch();
                 }
               }}
-              className="w-[300px] bg-white/10 safari-blur border-white/20 focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all duration-200"
+              className="w-[300px] bg-white/10 safari-blur border-white/20 focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all duration-200 fustat-regular"
               style={{
                 WebkitAppearance: 'none',
                 WebkitTapHighlightColor: 'transparent',
@@ -408,7 +513,7 @@ export const MindmapTree: React.FC<MindmapTreeProps> = ({
           </div>
           <Select value={fileType} onValueChange={setFileType}>
             <SelectTrigger 
-              className="w-[120px] bg-white/10 safari-blur border-white/20 focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all duration-200"
+              className="w-[120px] bg-white/10 safari-blur border-white/20 focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all duration-200 fustat-medium"
               style={{
                 WebkitAppearance: 'none',
                 WebkitTapHighlightColor: 'transparent',
@@ -418,7 +523,7 @@ export const MindmapTree: React.FC<MindmapTreeProps> = ({
             </SelectTrigger>
             <SelectContent>
               {fileTypes.map((type) => (
-                <SelectItem key={type.value} value={type.value}>
+                <SelectItem key={type.value} value={type.value} className="fustat-regular">
                   {type.label}
                 </SelectItem>
               ))}
@@ -427,7 +532,7 @@ export const MindmapTree: React.FC<MindmapTreeProps> = ({
           <Button 
             onClick={handleSearch} 
             disabled={isSearching}
-            className="bg-primary/10 hover:bg-primary/20 safari-blur border border-white/20 focus:ring-1 focus:ring-primary/50 transition-all duration-200"
+            className="bg-primary/10 hover:bg-primary/20 safari-blur border border-white/20 focus:ring-1 focus:ring-primary/50 transition-all duration-200 fustat-medium"
             style={{
               WebkitAppearance: 'none',
               WebkitTapHighlightColor: 'transparent',
@@ -437,12 +542,12 @@ export const MindmapTree: React.FC<MindmapTreeProps> = ({
           </Button>
         </div>
         {searchQuery && (
-          <div className="text-sm text-muted-foreground flex items-center gap-2">
+          <div className="text-sm text-muted-foreground flex items-center gap-2 fustat-regular">
             <span>Press Enter to search, Esc to clear</span>
             {matchingNodes.length > 0 && (
               <span className="flex items-center gap-1">
                 <span>← → to navigate</span>
-                <span className="px-2 py-0.5 bg-green-500/20 rounded text-green-500">
+                <span className="px-2 py-0.5 bg-green-500/20 rounded text-green-500 fustat-medium">
                   {currentMatchIndex + 1}/{matchingNodes.length}
                 </span>
               </span>
@@ -460,52 +565,21 @@ export const MindmapTree: React.FC<MindmapTreeProps> = ({
         onNodeClick={(node) => {
           setSelectedNode(node);
         }}
-        nodeCanvasObject={(node: any, ctx, globalScale) => {
-          const label = node.name;
-          const fontSize = 12 / globalScale;
-          ctx.font = `${fontSize}px Inter`;
-          
-          // Draw node icon
-          const iconSize = 16 / globalScale;
-          const iconX = node.x! - iconSize / 2;
-          const iconY = node.y! - iconSize / 2;
-          
-          // Apply enhanced glow effect for matching nodes
-          if (node.color === "#4ade80") {
-            ctx.shadowColor = "#4ade80";
-            ctx.shadowBlur = 20;
-            ctx.shadowOffsetX = 0;
-            ctx.shadowOffsetY = 0;
-          }
-          
-          if (node.type === "folder") {
-            ctx.fillStyle = "#58a6ff";
-            ctx.beginPath();
-            ctx.arc(node.x!, node.y!, 6 / globalScale, 0, 2 * Math.PI);
-            ctx.fill();
-          } else {
-            ctx.fillStyle = node.color === "#4ade80" ? "#4ade80" : "#c9d1d9";
-            ctx.beginPath();
-            ctx.arc(node.x!, node.y!, 4 / globalScale, 0, 2 * Math.PI);
-            ctx.fill();
-          }
-
-          // Reset shadow
-          ctx.shadowBlur = 0;
-          ctx.shadowOffsetX = 0;
-          ctx.shadowOffsetY = 0;
-
-          // Draw label with enhanced visibility for matching nodes
-          ctx.fillStyle = node.color === "#4ade80" ? "#4ade80" : "#c9d1d9";
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          ctx.fillText(label, node.x!, node.y! + 15 / globalScale);
-        }}
+        nodeCanvasObject={nodeCanvasObject}
         onNodeDrag={(node) => {
           if (!node) return;
           node.fx = node.x;
           node.fy = node.y;
         }}
+        // Add zoom constraints
+        minZoom={MIN_ZOOM_LEVEL}
+        maxZoom={MAX_ZOOM_LEVEL}
+        // Improve node spacing
+        d3AlphaDecay={0.02}
+        d3VelocityDecay={0.3}
+        linkDistance={50}
+        nodeRelSize={6}
+        cooldownTicks={100}
       />
 
       <Dialog.Root open={!!selectedNode} onOpenChange={() => setSelectedNode(null)}>
@@ -516,7 +590,7 @@ export const MindmapTree: React.FC<MindmapTreeProps> = ({
               Details for {selectedNode?.name}
             </Dialog.Description>
             <div className="flex items-start justify-between mb-4">
-              <Dialog.Title className="text-xl font-bold flex items-center gap-2">
+              <Dialog.Title className="text-xl font-bold flex items-center gap-2 fustat-semibold">
                 {selectedNode?.type === "folder" ? (
                   <FolderIcon className="h-5 w-5 text-[#58a6ff]" />
                 ) : (
@@ -530,7 +604,7 @@ export const MindmapTree: React.FC<MindmapTreeProps> = ({
             </div>
 
             <div className="space-y-4">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground fustat-regular">
                 <span className="px-2 py-1 bg-muted rounded-md">
                   {selectedNode?.type === "folder" ? "Directory" : "File"}
                 </span>
@@ -546,7 +620,7 @@ export const MindmapTree: React.FC<MindmapTreeProps> = ({
                   href={getGitHubUrl(selectedNode)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-sm text-[#58a6ff] hover:text-[#58a6ff]/80 transition-colors"
+                  className="flex items-center gap-2 text-sm text-[#58a6ff] hover:text-[#58a6ff]/80 transition-colors fustat-medium"
                 >
                   <ExternalLink className="h-4 w-4" />
                   View on GitHub
@@ -555,7 +629,7 @@ export const MindmapTree: React.FC<MindmapTreeProps> = ({
 
               {selectedNode?.children && selectedNode.children.length > 0 && (
                 <div className="mt-4">
-                  <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+                  <h4 className="text-sm font-medium mb-2 flex items-center gap-2 fustat-medium">
                     <FolderIcon className="h-4 w-4 text-[#58a6ff]" />
                     Contents
                   </h4>
@@ -563,7 +637,7 @@ export const MindmapTree: React.FC<MindmapTreeProps> = ({
                     {selectedNode.children.map((child) => (
                       <button
                         key={child.id}
-                        className="w-full text-left text-sm flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 transition-colors"
+                        className="w-full text-left text-sm flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 transition-colors fustat-regular"
                         onClick={() => setSelectedNode(child)}
                       >
                         {child.type === "folder" ? (
@@ -580,8 +654,8 @@ export const MindmapTree: React.FC<MindmapTreeProps> = ({
 
               {selectedNode?.type === "file" && (
                 <div className="mt-4">
-                  <h4 className="text-sm font-medium mb-2">File Information</h4>
-                  <div className="text-sm text-muted-foreground">
+                  <h4 className="text-sm font-medium mb-2 fustat-medium">File Information</h4>
+                  <div className="text-sm text-muted-foreground fustat-regular">
                     Click on the file in the visualization to view its contents.
                   </div>
                 </div>
