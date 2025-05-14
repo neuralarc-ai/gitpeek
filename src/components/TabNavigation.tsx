@@ -10,7 +10,7 @@ import { FileTree } from "@/types/fileTree";
 import { glassmorphism } from "@/styles/design-system";
 import { Terminal } from "lucide-react";
 
-// Lazy load documentation tabs with prefetching
+// Optimize lazy loading with prefetching
 const OverviewTab = lazy(() => import("./documentation/OverviewTab").then(module => ({ default: module.OverviewTab })));
 const CodeTab = lazy(() => import("./documentation/CodeTab").then(module => ({ default: module.CodeTab })));
 const ReadmeTab = lazy(() => import("./documentation/ReadmeTab").then(module => ({ default: module.ReadmeTab })));
@@ -95,107 +95,11 @@ export function TabNavigation({ owner, repo, onAnalysisUpdate }: TabNavigationPr
   const [readme, setReadme] = useState<string | null>(null);
   const [contributors, setContributors] = useState<any[] | null>(null);
   const [overview, setOverview] = useState<string | null>(null);
+  const [loadedTabs, setLoadedTabs] = useState<Set<string>>(new Set(['overview']));
   const navigate = useNavigate();
 
-  // Memoize the cache key
-  const cacheKey = useMemo(() => `${owner}/${repo}`, [owner, repo]);
-
+  // Prefetch all tab components on mount
   useEffect(() => {
-    const loadData = async () => {
-      setIsLoading(true);
-      setIsMindmapLoading(true);
-      setError(null);
-
-      try {
-        // Start loading documentation data first
-        const [repoDataResult, languagesData, readmeData] = await Promise.allSettled([
-          fetchRepoData(owner, repo),
-          fetchRepoLanguages(owner, repo),
-          fetchRepoReadme(owner, repo)
-        ]);
-
-        // Handle repository data first
-        if (repoDataResult.status === 'fulfilled') {
-          const initialRepoData = repoDataResult.value;
-          if (!initialRepoData) {
-            throw new Error("Repository not found or is private");
-          }
-          setRepoData(initialRepoData);
-
-          // Generate AI analysis if we have the necessary data
-          if (initialRepoData) {
-            try {
-              const analysis = await analyzeRepository(
-                initialRepoData,
-                languagesData.status === 'fulfilled' ? languagesData.value : {}
-              );
-              setOverview(analysis?.overview || "Analysis pending");
-              if (onAnalysisUpdate) {
-                onAnalysisUpdate(analysis);
-              }
-            } catch (error) {
-              console.error("Error analyzing repository:", error);
-              setOverview("Unable to generate repository analysis at this time. The AI service is currently unavailable.");
-            }
-          }
-        } else {
-          throw new Error("Failed to fetch repository data");
-        }
-
-        // Handle initial documentation data
-        if (languagesData.status === 'fulfilled') setLanguages(languagesData.value);
-        if (readmeData.status === 'fulfilled') setReadme(readmeData.value);
-
-        // Mark documentation as loaded
-        setIsLoading(false);
-
-        // Load additional data in the background
-        Promise.allSettled([
-          fetchRepoContributors(owner, repo).then(data => {
-            if (data) setContributors(data);
-          }),
-          fetchRepoStats(owner, repo).then(data => {
-            if (data) setStats(data);
-          })
-        ]).catch(console.error);
-
-        // Start loading mindmap data in the background
-        const loadMindmapData = async () => {
-          try {
-            const treeData = await buildFileTree(owner, repo);
-            if (treeData) {
-              setFileTree({
-                name: repo,
-                owner,
-                repo,
-                type: 'directory',
-                path: '',
-                children: treeData.map(child => convertToFileTree(child, owner, repo))
-              });
-            }
-          } catch (error) {
-            console.error("Error loading mindmap data:", error);
-          } finally {
-            setIsMindmapLoading(false);
-          }
-        };
-
-        // Start mindmap loading without awaiting
-        loadMindmapData();
-      } catch (error) {
-        console.error("Error loading repository data:", error);
-        setError("Failed to load repository data");
-        toast.error("Failed to load repository data");
-        navigate("/");
-      }
-    };
-
-    loadData();
-  }, [owner, repo, navigate, onAnalysisUpdate]);
-
-  // Prefetch documentation tab data immediately
-  useEffect(() => {
-    // Prefetch all documentation tabs
     const prefetchTabs = async () => {
       try {
         await Promise.all([
@@ -214,6 +118,129 @@ export function TabNavigation({ owner, repo, onAnalysisUpdate }: TabNavigationPr
     prefetchTabs();
   }, []);
 
+  // Load essential data first
+  useEffect(() => {
+    const loadEssentialData = async () => {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        // Load only essential data first
+        const [repoDataResult, languagesData] = await Promise.allSettled([
+          fetchRepoData(owner, repo),
+          fetchRepoLanguages(owner, repo)
+        ]);
+
+        if (repoDataResult.status === 'fulfilled' && repoDataResult.value) {
+          setRepoData(repoDataResult.value);
+          if (languagesData.status === 'fulfilled') {
+            setLanguages(languagesData.value);
+          }
+          setIsLoading(false);
+        } else {
+          throw new Error("Failed to fetch repository data");
+        }
+      } catch (error) {
+        console.error("Error loading essential data:", error);
+        setError("Failed to load repository data");
+        toast.error("Failed to load repository data");
+        navigate("/");
+      }
+    };
+
+    loadEssentialData();
+  }, [owner, repo, navigate]);
+
+  // Load additional data progressively
+  useEffect(() => {
+    if (!isLoading && repoData) {
+      const loadAdditionalData = async () => {
+        try {
+          // Load README and start AI analysis in parallel
+          const [readmeData] = await Promise.allSettled([
+            fetchRepoReadme(owner, repo)
+          ]);
+
+          if (readmeData.status === 'fulfilled') {
+            setReadme(readmeData.value);
+          }
+
+          // Load mindmap data first to include in AI analysis
+          const loadMindmapData = async () => {
+            try {
+              const treeData = await buildFileTree(owner, repo);
+              if (treeData) {
+                const fileTree: FileTree = {
+                  name: repo,
+                  owner,
+                  repo,
+                  type: 'directory',
+                  path: '',
+                  children: treeData.map(child => convertToFileTree(child, owner, repo))
+                };
+                setFileTree(fileTree);
+                return fileTree;
+              }
+              return null;
+            } catch (error) {
+              console.error("Error loading mindmap data:", error);
+              return null;
+            } finally {
+              setIsMindmapLoading(false);
+            }
+          };
+
+          // Load file tree first, then start AI analysis with complete context
+          const fileTree = await loadMindmapData();
+
+          // Start AI analysis with complete repository context
+          try {
+            const analysis = await analyzeRepository(
+              repoData,
+              languages || {},
+              fileTree || undefined
+            );
+            setOverview(analysis?.overview || "Analysis pending");
+            if (onAnalysisUpdate) {
+              onAnalysisUpdate(analysis);
+            }
+          } catch (error) {
+            console.error("Error analyzing repository:", error);
+            setOverview("Unable to generate repository analysis at this time.");
+          }
+
+          // Load contributors and stats in the background
+          Promise.allSettled([
+            fetchRepoContributors(owner, repo).then(data => {
+              if (data) setContributors(data);
+            }),
+            fetchRepoStats(owner, repo).then(data => {
+              if (data) setStats(data);
+            })
+          ]).catch(console.error);
+
+        } catch (error) {
+          console.error("Error loading additional data:", error);
+        }
+      };
+
+      loadAdditionalData();
+    }
+  }, [isLoading, repoData, owner, repo, languages, onAnalysisUpdate]);
+
+  // Handle tab changes
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    if (value === 'documentation') {
+      setLoadedTabs(prev => new Set([...prev, 'overview']));
+    }
+  };
+
+  // Handle documentation tab changes
+  const handleDocTabChange = (value: string) => {
+    setLoadedTabs(prev => new Set([...prev, value]));
+  };
+
   if (error) {
     return (
       <div className="p-6 rounded-lg bg-background/50 backdrop-blur-sm border border-border/50">
@@ -224,16 +251,16 @@ export function TabNavigation({ owner, repo, onAnalysisUpdate }: TabNavigationPr
   }
 
   return (
-    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+    <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full h flex flex-col items-center justify-center self-center">
       <TabsList className="w-full justify-start">
         <TabsTrigger value="documentation">Documentation</TabsTrigger>
         <TabsTrigger value="mindmap">Mindmap</TabsTrigger>
         <TabsTrigger value="files">Files</TabsTrigger>
       </TabsList>
 
-      <TabsContent value="documentation" className="mt-6">
+      <TabsContent value="documentation" className="mt-6 w-full">
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center h-[500px] space-y-6">
+          <div className="flex flex-col items-center justify-center h-full space-y-6">
             <div className="relative">
               <div className="animate-spin rounded-full h-16 w-16 border-4 border-primary/20 border-t-primary"></div>
               <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
@@ -250,7 +277,7 @@ export function TabNavigation({ owner, repo, onAnalysisUpdate }: TabNavigationPr
             </div>
           </div>
         ) : (
-          <Tabs defaultValue="overview" className="w-full">
+          <Tabs defaultValue="overview" className="w-full" onValueChange={handleDocTabChange}>
             <TabsList className="w-full justify-start">
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="code">Code</TabsTrigger>
@@ -260,67 +287,79 @@ export function TabNavigation({ owner, repo, onAnalysisUpdate }: TabNavigationPr
               <TabsTrigger value="readme">README</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="overview" className="mt-6">
-              <Suspense fallback={<TabLoading />}>
-                <OverviewTab
-                  overview={overview}
-                  repoData={repoData}
-                  languages={languages}
-                  stats={stats}
-                  isLoading={isLoading}
-                />
-              </Suspense>
-            </TabsContent>
+            {loadedTabs.has('overview') && (
+              <TabsContent value="overview" className="mt-6">
+                <Suspense fallback={<TabLoading />}>
+                  <OverviewTab
+                    overview={overview}
+                    repoData={repoData}
+                    languages={languages}
+                    stats={stats}
+                    isLoading={isLoading}
+                  />
+                </Suspense>
+              </TabsContent>
+            )}
 
-            <TabsContent value="code" className="mt-6">
-              <Suspense fallback={<TabLoading />}>
-                <CodeTab
-                  architecture={overview || ""}
-                  codeStructure={fileTree || undefined}
-                  isLoading={isLoading}
-                />
-              </Suspense>
-            </TabsContent>
+            {loadedTabs.has('code') && (
+              <TabsContent value="code" className="mt-6">
+                <Suspense fallback={<TabLoading />}>
+                  <CodeTab
+                    architecture={overview || ""}
+                    codeStructure={fileTree || undefined}
+                    isLoading={isLoading}
+                  />
+                </Suspense>
+              </TabsContent>
+            )}
 
-            <TabsContent value="contributors" className="mt-6">
-              <Suspense fallback={<TabLoading />}>
-                <ContributorsTab
-                  contributors={contributors}
-                  isLoading={isLoading}
-                />
-              </Suspense>
-            </TabsContent>
+            {loadedTabs.has('contributors') && (
+              <TabsContent value="contributors" className="mt-6">
+                <Suspense fallback={<TabLoading />}>
+                  <ContributorsTab
+                    contributors={contributors}
+                    isLoading={isLoading}
+                  />
+                </Suspense>
+              </TabsContent>
+            )}
 
-            <TabsContent value="installation" className="mt-6">
-              <Suspense fallback={<TabLoading />}>
-                <InstallationTab
-                  installation={overview || ""}
-                  readme={readme || ""}
-                  repoData={repoData}
-                  isLoading={isLoading}
-                />
-              </Suspense>
-            </TabsContent>
+            {loadedTabs.has('installation') && (
+              <TabsContent value="installation" className="mt-6">
+                <Suspense fallback={<TabLoading />}>
+                  <InstallationTab
+                    installation={overview || ""}
+                    readme={readme || ""}
+                    repoData={repoData}
+                    isLoading={isLoading}
+                  />
+                </Suspense>
+              </TabsContent>
+            )}
 
-            <TabsContent value="statistics" className="mt-6">
-              <Suspense fallback={<TabLoading />}>
-                <StatisticsTab
-                  stats={stats}
-                  languages={languages}
-                  repoData={repoData}
-                  isLoading={isLoading}
-                />
-              </Suspense>
-            </TabsContent>
+            {loadedTabs.has('statistics') && (
+              <TabsContent value="statistics" className="mt-6">
+                <Suspense fallback={<TabLoading />}>
+                  <StatisticsTab
+                    stats={stats}
+                    languages={languages}
+                    repoData={repoData}
+                    isLoading={isLoading}
+                  />
+                </Suspense>
+              </TabsContent>
+            )}
 
-            <TabsContent value="readme" className="mt-6">
-              <Suspense fallback={<TabLoading />}>
-                <ReadmeTab
-                  readme={readme}
-                  isLoading={isLoading}
-                />
-              </Suspense>
-            </TabsContent>
+            {loadedTabs.has('readme') && (
+              <TabsContent value="readme" className="mt-6">
+                <Suspense fallback={<TabLoading />}>
+                  <ReadmeTab
+                    readme={readme}
+                    isLoading={isLoading}
+                  />
+                </Suspense>
+              </TabsContent>
+            )}
           </Tabs>
         )}
       </TabsContent>

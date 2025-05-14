@@ -2,6 +2,8 @@ import { getApiKey } from "@/utils/apiKeys";
 import { toast } from "@/components/ui/sonner";
 import { RepoData, RepoLanguages, Contributor } from "./githubService";
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
+import { FileTree } from "@/types/fileTree";
+import { fileService } from './fileService';
 
 interface AnalysisResult {
   overview: string;
@@ -62,6 +64,68 @@ interface RepositoryAnalysis {
   improvements: string;
 }
 
+// Add new interfaces for better type safety
+interface FileMetadata {
+  name: string;
+  type: "file" | "directory";
+  path: string;
+  language?: string;
+  size?: number;
+  lastModified?: string;
+  content?: string;
+  dependencies?: string[];
+  imports?: string[];
+  exports?: string[];
+}
+
+interface RepositoryContext {
+  metadata: {
+    name: string;
+    description: string;
+    owner: string;
+    stars: number;
+    forks: number;
+    language: string;
+    languages: Record<string, number>;
+    topics: string[];
+    createdAt: string;
+    updatedAt: string;
+    defaultBranch: string;
+    size: number;
+    openIssues: number;
+    watchers: number;
+    license?: string;
+    homepage?: string;
+    hasWiki: boolean;
+    hasPages: boolean;
+    hasIssues: boolean;
+    hasProjects: boolean;
+    archived: boolean;
+    disabled: boolean;
+    visibility: string;
+    isTemplate: boolean;
+    allowForking: boolean;
+    webCommitSignoffRequired: boolean;
+    permissions: any;
+  };
+  fileStructure: {
+    name: string;
+    type: "file" | "directory";
+    path: string;
+    children: FileMetadata[];
+  };
+  fileListing: FileMetadata[];
+  fileStats: {
+    totalFiles: number;
+    totalDirectories: number;
+    fileTypes: string[];
+    languages: string[];
+    largestFiles: FileMetadata[];
+    mostRecentFiles: FileMetadata[];
+    configurationFiles: FileMetadata[];
+  };
+}
+
 // Helper functions to extract different sections from the analysis
 const extractArchitecture = (text: string): string => {
   const match = text.match(/(?:^|\n)3\.\s+Technical architecture:?([\s\S]*?)(?=\n\d\.\s+|\n*$)/);
@@ -83,207 +147,493 @@ const extractImprovements = (text: string): string => {
   return match ? match[1].trim() : "Improvements analysis unavailable";
 };
 
-export const analyzeRepository = async (repoData: any, languages: any): Promise<RepositoryAnalysis> => {
-  try {
-    const token = getApiKey('gemini');
-    if (!token) {
-      throw new Error("Gemini API key not found");
+// Add retry configuration
+const RETRY_CONFIG = {
+  maxRetries: 3,
+  initialDelay: 1000, // 1 second
+  maxDelay: 10000, // 10 seconds
+  backoffFactor: 2
+};
+
+// Helper function for exponential backoff
+async function wait(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Helper function to handle retries
+async function withRetry<T>(
+  operation: () => Promise<T>,
+  retryConfig = RETRY_CONFIG
+): Promise<T> {
+  let lastError: Error | null = null;
+  let delay = retryConfig.initialDelay;
+
+  for (let attempt = 0; attempt < retryConfig.maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (error: any) {
+      lastError = error;
+      
+      // Check if it's a service unavailability error
+      if (error.message?.includes('503') || error.message?.includes('unavailable')) {
+        if (attempt < retryConfig.maxRetries - 1) {
+          // Wait with exponential backoff
+          await wait(Math.min(delay, retryConfig.maxDelay));
+          delay *= retryConfig.backoffFactor;
+          continue;
+        }
+      }
+      
+      // If it's not a 503 error or we've exhausted retries, throw
+      throw error;
     }
+  }
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+  throw lastError || new Error('Operation failed after retries');
+}
 
-    // Prepare the context with repository information
-    const repositoryContext = {
+// Add new interface for analysis tasks
+interface AnalysisTask {
+  type: 'bug-fixing' | 'optimization' | 'documentation' | 'code-review';
+  description?: string;
+  focusAreas?: string[];
+}
+
+// Add new interface for file content request
+interface FileContentRequest {
+  path: string;
+  reason: string;
+}
+
+// Add new interface for analysis context
+interface AnalysisContext {
+  task: AnalysisTask;
+  repositoryContext: RepositoryContext;
+  requestedFiles: Map<string, string>;
+  analysisProgress: {
+    currentPhase: string;
+    completedPhases: string[];
+    pendingPhases: string[];
+  };
+}
+
+// Add these utility functions at the top of the file, after imports
+function safeJSONStringify(obj: any): string {
+  return JSON.stringify(obj)
+    .replace(/[\u0000-\u001F]+/g, "") // Remove control characters
+    .replace(/\\n/g, "\\n")           // Escape newlines
+    .replace(/\\r/g, "\\r")
+    .replace(/\\t/g, "\\t")
+    .replace(/\\"/g, '\\"');
+}
+
+function sanitizeFileContent(content: string): string {
+  return content
+    .replace(/[\u0000-\u001F]+/g, "") // Remove control characters
+    .replace(/\\/g, "\\\\")           // Escape backslashes
+    .replace(/"/g, '\\"');            // Escape quotes
+}
+
+function safeJSONParse(jsonString: string): any {
+  try {
+    return JSON.parse(jsonString);
+  } catch (err) {
+    console.error("Failed to parse JSON:", err);
+    console.log("Raw response was:", jsonString);
+    throw new Error("Invalid JSON response from AI");
+  }
+}
+
+export async function analyzeRepository(
+  repoData: any,
+  languages: Record<string, number>,
+  fileTree?: FileTree,
+  task?: AnalysisTask
+): Promise<RepositoryAnalysis> {
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("Gemini API key not found in environment variables");
+  }
+
+  try {
+    // Process file tree into detailed metadata
+    const processedFiles = fileTree ? processFileTree(fileTree) : [];
+    
+    // Prepare repository context with enhanced file structure
+    const repositoryContext: RepositoryContext = {
       metadata: {
         name: repoData.name,
         description: repoData.description,
         owner: repoData.owner.login,
-        language: repoData.language,
         stars: repoData.stargazers_count,
         forks: repoData.forks_count,
-        openIssues: repoData.open_issues_count,
+        language: repoData.language,
+        languages: languages,
+        topics: repoData.topics || [],
         createdAt: repoData.created_at,
         updatedAt: repoData.updated_at,
         defaultBranch: repoData.default_branch,
-        languages: languages
+        size: repoData.size,
+        openIssues: repoData.open_issues_count,
+        watchers: repoData.watchers_count,
+        license: repoData.license?.name,
+        homepage: repoData.homepage,
+        hasWiki: repoData.has_wiki,
+        hasPages: repoData.has_pages,
+        hasIssues: repoData.has_issues,
+        hasProjects: repoData.has_projects,
+        archived: repoData.archived,
+        disabled: repoData.disabled,
+        visibility: repoData.visibility,
+        isTemplate: repoData.is_template,
+        allowForking: repoData.allow_forking,
+        webCommitSignoffRequired: repoData.web_commit_signoff_required,
+        permissions: repoData.permissions,
       },
-      fileStructure: repoData.fileStructure || [],
-      fileListing: repoData.fileListing || []
+      fileStructure: fileTree ? {
+        name: fileTree.name,
+        type: fileTree.type as "file" | "directory",
+        path: fileTree.path,
+        children: processedFiles
+      } : {
+        name: repoData.name,
+        type: "directory",
+        path: "",
+        children: []
+      },
+      fileListing: processedFiles,
+      fileStats: fileTree ? generateFileStats(processedFiles) : {
+        totalFiles: 0,
+        totalDirectories: 0,
+        fileTypes: [],
+        languages: [],
+        largestFiles: [],
+        mostRecentFiles: [],
+        configurationFiles: []
+      }
     };
 
-    // Add retry logic for API calls
-    const maxRetries = 3;
-    let retryCount = 0;
-    let lastError = null;
-
-    while (retryCount < maxRetries) {
-      try {
-        const result = await model.generateContent([
-          {
-            text: `Analyze this GitHub repository and provide a comprehensive overview. Here's the repository information:\n\n${JSON.stringify(repositoryContext, null, 2)}\n\nPlease provide a detailed analysis including:\n1. Project overview and purpose\n2. Main features and functionality\n3. Technical architecture\n4. Key components and their relationships\n5. Development setup and requirements\n6. Best practices and code quality\n7. Potential improvements\n\nFormat the response as a structured analysis.`
-          }
-        ]);
-
-        const response = await result.response;
-        const text = response.text();
-        
-        // Parse the response and structure it
-        const analysis: RepositoryAnalysis = {
-          overview: text,
-          architecture: extractArchitecture(text),
-          features: extractFeatures(text),
-          setup: extractSetup(text),
-          improvements: extractImprovements(text)
-        };
-
-        return analysis;
-      } catch (error: any) {
-        lastError = error;
-        if (error.message?.includes('503') || error.message?.includes('overloaded')) {
-          // Wait before retrying (exponential backoff)
-          const waitTime = Math.pow(2, retryCount) * 1000;
-          await new Promise(resolve => setTimeout(resolve, waitTime));
-          retryCount++;
-          continue;
-        }
-        // If it's not a 503 error, throw immediately
-        throw error;
+    // Create analysis context
+    const analysisContext: AnalysisContext = {
+      task: task || { type: 'code-review' },
+      repositoryContext,
+      requestedFiles: new Map(),
+      analysisProgress: {
+        currentPhase: 'initial-analysis',
+        completedPhases: [],
+        pendingPhases: ['file-analysis', 'issue-identification', 'recommendations']
       }
+    };
+
+    // Prepare the task-specific prompt
+    const taskPrompt = getTaskSpecificPrompt(analysisContext);
+
+    // Get the model and generate content with retry logic
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    
+    const result = await withRetry(async () => {
+      const response = await model.generateContent(taskPrompt);
+      return response.response;
+    });
+
+    const text = result.text();
+
+    // Extract JSON from markdown-formatted response
+    const jsonMatch = text.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+    if (!jsonMatch) {
+      console.error("No JSON found in response:", text);
+      return {
+        overview: "Error: Invalid response format",
+        architecture: "Error: Invalid response format",
+        features: "Error: Invalid response format",
+        setup: "Error: Invalid response format",
+        improvements: "Error: Invalid response format"
+      };
     }
 
-    // If we've exhausted all retries, throw the last error
-    throw lastError || new Error("Failed to analyze repository after multiple retries");
-  } catch (error: any) {
-    console.error("Error analyzing repository:", error);
-    // Return a default analysis structure with error information
+    try {
+      const analysis = JSON.parse(jsonMatch[1]);
+      return {
+        overview: analysis.overview || "No overview available",
+        architecture: analysis.architecture || "No architecture details available",
+        features: analysis.features || "No features listed",
+        setup: analysis.setup || "No setup instructions available",
+        improvements: analysis.improvements || "No improvement suggestions available"
+      };
+    } catch (error) {
+      console.error("Error parsing JSON from response:", error);
     return {
-      overview: "Unable to generate repository analysis at this time. The AI service is currently unavailable.",
-      architecture: "Analysis pending",
-      features: "Analysis pending",
-      setup: "Analysis pending",
-      improvements: "Analysis pending"
-    };
+        overview: "Error parsing analysis response",
+        architecture: "Error parsing architecture details",
+        features: "Error parsing features",
+        setup: "Error parsing setup instructions",
+        improvements: "Error parsing improvement suggestions"
+      };
+    }
+  } catch (error) {
+    console.error("Error analyzing repository:", error);
+    throw error;
   }
-};
+}
+
+// Helper function to get task-specific prompt
+function getTaskSpecificPrompt(context: AnalysisContext): string {
+  const { task, repositoryContext } = context;
+  
+  const taskInstructions = {
+    'bug-fixing': `
+      Focus on identifying potential bugs and issues:
+      1. Analyze error handling patterns
+      2. Check for common security vulnerabilities
+      3. Review input validation
+      4. Examine edge cases
+      5. Look for race conditions
+      6. Check for memory leaks
+      7. Review exception handling
+    `,
+    'optimization': `
+      Focus on performance and efficiency:
+      1. Analyze algorithm complexity
+      2. Check for redundant operations
+      3. Review resource usage
+      4. Examine caching opportunities
+      5. Look for parallelization possibilities
+      6. Check for memory optimization
+      7. Review database queries
+    `,
+    'documentation': `
+      Focus on improving documentation:
+      1. Check code comments
+      2. Review README completeness
+      3. Examine API documentation
+      4. Look for missing documentation
+      5. Check for outdated documentation
+      6. Review inline documentation
+      7. Suggest documentation improvements
+    `,
+    'code-review': `
+      Focus on code quality and best practices:
+      1. Check code style consistency
+      2. Review design patterns
+      3. Examine code organization
+      4. Look for code smells
+      5. Check for test coverage
+      6. Review error handling
+      7. Examine maintainability
+    `
+  };
+
+  return `Analyze this GitHub repository for ${task.type}. Here's the repository information:
+
+Repository Context:
+${JSON.stringify(repositoryContext, null, 2)}
+
+${taskInstructions[task.type]}
+
+Analysis Guidelines:
+1. Start with a high-level overview of the codebase
+2. Identify key areas for improvement
+3. Provide specific recommendations
+4. Include code examples where relevant
+5. Prioritize issues by severity
+6. Suggest actionable improvements
+7. Consider best practices and patterns
+
+If you need to examine specific files in detail, request them using the following format:
+{
+  "requestFile": {
+    "path": "path/to/file",
+    "reason": "Why you need this file"
+  }
+}
+
+Format your analysis as a JSON object with these keys:
+{
+  "overview": "High-level summary",
+  "architecture": "Technical architecture analysis",
+  "features": "Key features and functionality",
+  "setup": "Development setup and requirements",
+  "improvements": "Specific improvements and recommendations",
+  "fileRequests": [{
+    "path": "path/to/file",
+    "reason": "Why you need this file"
+  }]
+}`;
+}
+
+// Helper function to process file tree into detailed metadata
+function processFileTree(node: FileTree, path: string = ''): FileMetadata[] {
+  const currentPath = path ? `${path}/${node.name}` : node.name;
+  const result: FileMetadata[] = [{
+    name: node.name,
+    type: node.type as "file" | "directory",
+    path: currentPath,
+    language: node.language,
+    size: node.size,
+    lastModified: node.lastModified,
+    content: node.content,
+    dependencies: extractDependencies(node.content),
+    imports: extractImports(node.content),
+    exports: extractExports(node.content)
+  }];
+
+  if (node.children) {
+    node.children.forEach(child => {
+      result.push(...processFileTree(child, currentPath));
+    });
+  }
+
+  return result;
+}
+
+// Helper function to generate file statistics
+function generateFileStats(files: FileMetadata[]) {
+  const fileTypes = new Set<string>();
+  const languages = new Set<string>();
+  const configFiles: FileMetadata[] = [];
+  
+  files.forEach(file => {
+    if (file.type === "file") {
+      fileTypes.add(file.path.split('.').pop() || '');
+      if (file.language) languages.add(file.language);
+      
+      // Identify configuration files
+      if (isConfigFile(file.path)) {
+        configFiles.push(file);
+      }
+    }
+  });
+
+  return {
+    totalFiles: files.filter(f => f.type === "file").length,
+    totalDirectories: files.filter(f => f.type === "directory").length,
+    fileTypes: Array.from(fileTypes),
+    languages: Array.from(languages),
+    largestFiles: [...files]
+      .filter(f => f.type === "file" && f.size)
+      .sort((a, b) => (b.size || 0) - (a.size || 0))
+      .slice(0, 5),
+    mostRecentFiles: [...files]
+      .filter(f => f.type === "file" && f.lastModified)
+      .sort((a, b) => new Date(b.lastModified || '').getTime() - new Date(a.lastModified || '').getTime())
+      .slice(0, 5),
+    configurationFiles: configFiles
+  };
+}
+
+// Helper function to identify configuration files
+function isConfigFile(path: string): boolean {
+  const configPatterns = [
+    /^\.env/,
+    /^\.gitignore$/,
+    /^package\.json$/,
+    /^tsconfig\.json$/,
+    /^webpack\.config\./,
+    /^babel\.config\./,
+    /^jest\.config\./,
+    /^\.eslintrc/,
+    /^\.prettierrc/,
+    /^dockerfile/i,
+    /^docker-compose\./i,
+    /^\.github\/workflows\//,
+    /^\.travis\.yml$/,
+    /^\.circleci\/config\.yml$/,
+    /^\.vscode\/settings\.json$/
+  ];
+  
+  return configPatterns.some(pattern => pattern.test(path.toLowerCase()));
+}
+
+// Helper functions to extract code information
+function extractDependencies(content?: string): string[] {
+  if (!content) return [];
+  const deps: string[] = [];
+  
+  // Extract package.json dependencies
+  const packageJson = content.match(/"dependencies":\s*{([^}]+)}/);
+  if (packageJson) {
+    const matches = packageJson[1].match(/"([^"]+)":\s*"[^"]+"/g);
+    if (matches) {
+      deps.push(...matches.map(m => m.match(/"([^"]+)"/)?.[1] || ''));
+    }
+  }
+  
+  return deps;
+}
+
+function extractImports(content?: string): string[] {
+  if (!content) return [];
+  const imports: string[] = [];
+  
+  // Match various import patterns
+  const patterns = [
+    /import\s+.*\s+from\s+['"]([^'"]+)['"]/g,
+    /require\(['"]([^'"]+)['"]\)/g,
+    /from\s+['"]([^'"]+)['"]/g
+  ];
+  
+  patterns.forEach(pattern => {
+    const matches = content.matchAll(pattern);
+    for (const match of matches) {
+      if (match[1]) imports.push(match[1]);
+    }
+  });
+  
+  return imports;
+}
+
+function extractExports(content?: string): string[] {
+  if (!content) return [];
+  const exports: string[] = [];
+  
+  // Match various export patterns
+  const patterns = [
+    /export\s+(?:const|let|var|function|class|default)\s+([a-zA-Z0-9_$]+)/g,
+    /export\s+{[^}]+}/g,
+    /module\.exports\s*=\s*([a-zA-Z0-9_$]+)/g
+  ];
+  
+  patterns.forEach(pattern => {
+    const matches = content.matchAll(pattern);
+    for (const match of matches) {
+      if (match[1]) exports.push(match[1]);
+    }
+  });
+  
+  return exports;
+}
 
 export async function askGemini(question: string, context: any) {
   try {
     const model = genAI.getGenerativeModel(modelConfig);
 
-    // Validate and process repository data
-    if (!context || !context.metadata || !context.structure) {
-      throw new Error('Invalid repository context provided');
+    // Extract file path from the question
+    const filePathMatch = question.match(/search\s+(?:for\s+)?(?:file\s+)?([^\s]+)/i);
+    const requestedPath = filePathMatch ? filePathMatch[1] : question.trim();
+
+    // Get file content
+    const fileContent = await fileService.getFileContent(requestedPath);
+    
+    if (!fileContent) {
+      return `I couldn't find the file "${requestedPath}" in the repository.`;
     }
 
-    // Process file structure with validation
-    const fileStructure = context.structure.fileStructure || {};
-    const fileListing = Array.isArray(context.structure.fileListing) ? context.structure.fileListing : [];
-    const completeFileStructure = context.structure.completeFileStructure || '{}';
+    // Create a simple prompt for file content
+    const prompt = `Here is the content of the file "${requestedPath}":
 
-    // Process metadata with validation
-    const metadata = {
-      name: context.metadata.name || 'Unknown Repository',
-      owner: context.metadata.owner || 'Unknown Owner',
-      description: context.metadata.description || 'No description available',
-      languages: Array.isArray(context.metadata.languages) ? context.metadata.languages : [],
-      contributors: Array.isArray(context.metadata.contributors) ? context.metadata.contributors : [],
-      readme: context.metadata.readme || 'No README available'
-    };
+\`\`\`
+${sanitizeFileContent(fileContent)}
+\`\`\`
 
-    // Create a detailed file structure summary with validation
-    const fileStructureInfo = fileListing.length > 0 
-      ? `\nDetailed File Structure:\n${fileListing
-          .filter((file: any) => file && typeof file === 'object')
-          .map((file: any) => {
-            const fileInfo = {
-              path: file.path || 'unknown path',
-              type: file.type || 'unknown',
-              size: typeof file.size === 'number' ? file.size : 0,
-              language: file.language || 'unknown',
-              lastModified: file.lastModified || new Date().toISOString(),
-              content: file.content ? file.content.substring(0, 200) + '...' : 'No content available'
-            };
-            return `- ${fileInfo.path}
-             Type: ${fileInfo.type}
-             Size: ${fileInfo.size} bytes
-             Language: ${fileInfo.language}
-             Last Modified: ${fileInfo.lastModified}
-             Content Preview: ${fileInfo.content}`;
-          }).join('\n\n')}`
-      : 'No file structure information available';
+Please provide a brief summary of this file's content and purpose.`;
 
-    // Create a comprehensive repository context with validated data
-    const repositoryContext = {
-      basic: metadata,
-      structure: {
-        totalFiles: fileListing.length,
-        fileTypes: [...new Set(fileListing.map((f: any) => f?.type).filter(Boolean))],
-        languages: [...new Set(fileListing.map((f: any) => f?.language).filter(Boolean))],
-        completeStructure: completeFileStructure
-      }
-    };
+    // Use retry logic for the API call
+    const result = await withRetry(async () => {
+      const response = await model.generateContent(prompt);
+      return response.response;
+    });
 
-    // Create a more focused prompt with clear instructions
-    const prompt = `You are an AI assistant helping users understand a GitHub repository.
-    Repository Context:
-    
-    Basic Information:
-    - Name: ${repositoryContext.basic.name}
-    - Owner: ${repositoryContext.basic.owner}
-    - Description: ${repositoryContext.basic.description}
-    - Languages: ${JSON.stringify(repositoryContext.basic.languages)}
-    - Contributors: ${JSON.stringify(repositoryContext.basic.contributors)}
-    - README: ${repositoryContext.basic.readme}
-
-    Repository Structure:
-    - Total Files: ${repositoryContext.structure.totalFiles}
-    - File Types: ${repositoryContext.structure.fileTypes.join(', ')}
-    - Detected Languages: ${repositoryContext.structure.languages.join(', ')}
-    
-    ${fileStructureInfo}
-
-    Previous conversation:
-    ${Array.isArray(context.conversation) 
-      ? context.conversation
-          .filter((msg: any) => msg && msg.role && msg.content)
-          .map((msg: any) => `${msg.role}: ${msg.content}`)
-          .join('\n')
-      : 'No previous conversation'}
-
-    User question: ${question}
-
-    Please provide a helpful and comprehensive response based on the repository context. 
-    Guidelines for your response:
-    1. If the question is about finding specific files or functionality:
-       - Use the detailed file structure to locate relevant files
-       - Explain the purpose and location of the files
-       - Suggest the most relevant files for the user's query
-       - Include file paths and their purposes
-       - If a file's content is available, reference it in your explanation
-    
-    2. If information is missing:
-       - Acknowledge what information is not available
-       - Explain what additional information would be helpful
-       - Provide guidance based on the available information
-       - Suggest alternative approaches based on the existing data
-    
-    3. For general questions:
-       - Use the complete repository context to provide insights
-       - Reference specific files and their purposes
-       - Explain the repository structure and organization
-       - Highlight key files and their relationships
-    
-    4. Response format:
-       - Start with a direct answer to the question
-       - Provide relevant file paths and their purposes
-       - Include specific examples from the file structure
-       - End with a summary of key points
-    
-    Keep your response focused on helping the user understand the repository structure and locate relevant files.`;
-
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const responseText = response.text();
+    const responseText = result.text();
 
     if (!responseText) {
       throw new Error('No response received from AI');
@@ -292,6 +642,14 @@ export async function askGemini(question: string, context: any) {
     return responseText;
   } catch (error) {
     console.error("Error getting AI response:", error);
-    throw new Error(`Failed to get AI response: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    
+    // Provide a more user-friendly error message
+    if (error instanceof Error) {
+      if (error.message.includes('503') || error.message.includes('unavailable')) {
+        throw new Error('The AI service is currently experiencing high demand. Please try again in a few moments.');
+      }
+      throw new Error(`Failed to get AI response: ${error.message}`);
+    }
+    throw new Error('An unexpected error occurred while getting the AI response');
   }
 }
