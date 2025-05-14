@@ -112,6 +112,104 @@ export const fetchRepoLanguages = async (owner: string, repo: string): Promise<R
   }
 };
 
+// Helper function to fetch key repository files
+const fetchKeyFiles = async (owner: string, repo: string, token: string | null): Promise<string> => {
+  // First, get the repository's root contents
+  let rootFiles: any[] = [];
+  try {
+    const response = await fetch(`${API_BASE_URL}/repos/${owner}/${repo}/contents`, {
+      headers: {
+        'Accept': 'application/vnd.github.v3+json',
+        'Authorization': token ? `token ${token}` : '',
+      }
+    });
+    
+    if (response.ok) {
+      rootFiles = await response.json();
+    }
+  } catch (error) {
+    console.log('Failed to fetch repository contents:', error);
+  }
+
+  // Get the repository's primary language
+  let primaryLanguage = '';
+  try {
+    const langResponse = await fetch(`${API_BASE_URL}/repos/${owner}/${repo}/languages`, {
+      headers: {
+        'Accept': 'application/vnd.github.v3+json',
+        'Authorization': token ? `token ${token}` : '',
+      }
+    });
+    
+    if (langResponse.ok) {
+      const languages = await langResponse.json();
+      primaryLanguage = Object.entries(languages)
+        .sort(([, a], [, b]) => (b as number) - (a as number))[0]?.[0] || '';
+    }
+  } catch (error) {
+    console.log('Failed to fetch repository languages:', error);
+  }
+
+  // Map languages to their relevant configuration files
+  const languageToFiles: { [key: string]: string[] } = {
+    'JavaScript': ['package.json', 'tsconfig.json', '.babelrc', 'webpack.config.js'],
+    'TypeScript': ['package.json', 'tsconfig.json', '.babelrc', 'webpack.config.js'],
+    'Python': ['requirements.txt', 'setup.py', 'Pipfile', 'pyproject.toml'],
+    'Java': ['pom.xml', 'build.gradle', 'build.sbt'],
+    'Go': ['go.mod', 'go.sum'],
+    'Ruby': ['Gemfile', 'Gemfile.lock'],
+    'PHP': ['composer.json', 'composer.lock'],
+    'Rust': ['Cargo.toml', 'Cargo.lock'],
+    'C#': ['*.csproj', '*.sln'],
+    'C++': ['CMakeLists.txt', 'Makefile'],
+    'C': ['Makefile', 'CMakeLists.txt'],
+  };
+
+  // Get relevant files for the primary language, or use a minimal set if language is unknown
+  const possibleFiles = primaryLanguage && languageToFiles[primaryLanguage] 
+    ? languageToFiles[primaryLanguage]
+    : ['package.json', 'requirements.txt'];
+
+  // Filter files that actually exist in the repository
+  const existingFiles = possibleFiles.filter(file => 
+    rootFiles.some(rootFile => rootFile.name === file)
+  );
+
+  let keyFilesContent = '';
+  
+  // If we found any configuration files, fetch their contents
+  if (existingFiles.length > 0) {
+    for (const file of existingFiles) {
+      try {
+        const response = await fetch(`${API_BASE_URL}/repos/${owner}/${repo}/contents/${file}`, {
+          headers: {
+            'Accept': 'application/vnd.github.v3+json',
+            'Authorization': token ? `token ${token}` : '',
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          const content = window.atob(data.content.replace(/\n/g, ''));
+          keyFilesContent += `\n## ${file}\n\`\`\`\n${content}\n\`\`\`\n`;
+        }
+      } catch (error) {
+        console.log(`Failed to fetch ${file}:`, error);
+        continue;
+      }
+    }
+  }
+
+  // Always include the repository structure
+  keyFilesContent += '\n## Repository Structure\n';
+  keyFilesContent += 'Here are the main files and directories in the repository:\n\n';
+  keyFilesContent += rootFiles
+    .map((file: any) => `- ${file.name} (${file.type})`)
+    .join('\n');
+
+  return keyFilesContent;
+};
+
 // Fetch repository README content
 export const fetchRepoReadme = async (owner: string, repo: string): Promise<string | null> => {
   try {
@@ -125,7 +223,50 @@ export const fetchRepoReadme = async (owner: string, repo: string): Promise<stri
 
     if (!response.ok) {
       if (response.status === 404) {
-        return "No README found in this repository.";
+        // Try to find alternative documentation files
+        const alternativeFiles = [
+          'README.md', 'readme.md', 'README.txt', 'readme.txt',
+          'docs/README.md', 'docs/readme.md', 'documentation/README.md',
+          'doc/README.md', '.github/README.md'
+        ];
+        
+        for (const file of alternativeFiles) {
+          try {
+            const altResponse = await fetch(`${API_BASE_URL}/repos/${owner}/${repo}/contents/${file}`, {
+              headers: {
+                'Accept': 'application/vnd.github.v3+json',
+                'Authorization': token ? `token ${token}` : '',
+              }
+            });
+            
+            if (altResponse.ok) {
+              const data = await altResponse.json();
+              const content = window.atob(data.content.replace(/\n/g, ''));
+              return content;
+            }
+          } catch (error) {
+            console.log(`Failed to fetch alternative file ${file}:`, error);
+            continue;
+          }
+        }
+
+        // If no documentation found, create a helpful default README
+        const defaultReadme = `# ${repo}
+
+## Overview
+This repository does not have a README file. Here's what we know about the project:
+
+## Repository Information
+- Owner: ${owner}
+- Repository: ${repo}
+
+## Key Files
+Below are some key files that might help you understand the project structure:`;
+
+        // Fetch key files to add to the default README
+        const keyFilesContent = await fetchKeyFiles(owner, repo, token);
+        
+        return defaultReadme + keyFilesContent;
       }
       throw new Error(`GitHub API error: ${response.status}`);
     }

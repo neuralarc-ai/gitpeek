@@ -53,71 +53,116 @@ export const getGeminiHeaders = () => {
   };
 };
 
-export const analyzeRepository = async (
-  repoData: RepoData, 
-  languages: RepoLanguages,
-  contributors?: Contributor[] | null
-): Promise<AnalysisResult | null> => {
-  try {
-    const model = genAI.getGenerativeModel(modelConfig);
+// Add type definition for RepositoryAnalysis
+interface RepositoryAnalysis {
+  overview: string;
+  architecture: string;
+  features: string;
+  setup: string;
+  improvements: string;
+}
 
-    // Create a summary of contributors if available
-    let contributorsSummary = "";
-    if (contributors && contributors.length > 0) {
-      const topContributors = contributors.slice(0, 5);
-      contributorsSummary = `
-        Top Contributors:
-        ${topContributors.map(c => `- ${c.login} (${c.contributions} contributions)`).join('\n')}
-        Total Contributors: ${contributors.length}
-      `;
+// Helper functions to extract different sections from the analysis
+const extractArchitecture = (text: string): string => {
+  const match = text.match(/(?:^|\n)3\.\s+Technical architecture:?([\s\S]*?)(?=\n\d\.\s+|\n*$)/);
+  return match ? match[1].trim() : "Architecture analysis unavailable";
+};
+
+const extractFeatures = (text: string): string => {
+  const match = text.match(/(?:^|\n)2\.\s+Main features and functionality:?([\s\S]*?)(?=\n\d\.\s+|\n*$)/);
+  return match ? match[1].trim() : "Features analysis unavailable";
+};
+
+const extractSetup = (text: string): string => {
+  const match = text.match(/(?:^|\n)5\.\s+Development setup and requirements:?([\s\S]*?)(?=\n\d\.\s+|\n*$)/);
+  return match ? match[1].trim() : "Setup instructions unavailable";
+};
+
+const extractImprovements = (text: string): string => {
+  const match = text.match(/(?:^|\n)7\.\s+Potential improvements:?([\s\S]*?)(?=\n\d\.\s+|\n*$)/);
+  return match ? match[1].trim() : "Improvements analysis unavailable";
+};
+
+export const analyzeRepository = async (repoData: any, languages: any): Promise<RepositoryAnalysis> => {
+  try {
+    const token = getApiKey('gemini');
+    if (!token) {
+      throw new Error("Gemini API key not found");
     }
 
-    const prompt = `
-        Analyze this GitHub repository information and provide comprehensive insights:
-        
-        Repository: ${repoData.name}
-        Owner: ${repoData.owner.login}
-        Description: ${repoData.description || "No description available"}
-        Languages: ${Object.keys(languages).join(', ')}
-        Stars: ${repoData.stargazers_count}
-        Forks: ${repoData.forks_count}
-        Created: ${new Date(repoData.created_at).toLocaleDateString()}
-        Last Updated: ${new Date(repoData.updated_at).toLocaleDateString()}
-        ${contributorsSummary}
-        
-        Please provide the following sections:
-        
-        1. **OVERVIEW**: A comprehensive assessment of the repository including its purpose, health metrics, and key highlights.
-        
-        2. **ARCHITECTURE**: Detailed analysis of the code architecture, patterns used, and structure.
-        
-        3. **INSTALLATION**: Step-by-step installation instructions assuming this is a standard project in the given language(s). Include any prerequisites, dependency information, and configuration steps.
-        
-        4. **CODE STRUCTURE**: Analysis of the code organization, key files/directories, and how the different parts relate to each other.
-        
-        Keep each section focused and informative for developers looking to understand this repository.
-      `;
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
-    
-    // Parse sections using regex pattern for markdown headers
-    const overviewMatch = text.match(/(?:^|\n)1\.\s+\*\*OVERVIEW\*\*:?([\s\S]*?)(?=\n\d\.\s+\*\*|\n*$)/);
-    const architectureMatch = text.match(/(?:^|\n)2\.\s+\*\*ARCHITECTURE\*\*:?([\s\S]*?)(?=\n\d\.\s+\*\*|\n*$)/);
-    const installationMatch = text.match(/(?:^|\n)3\.\s+\*\*INSTALLATION\*\*:?([\s\S]*?)(?=\n\d\.\s+\*\*|\n*$)/);
-    const codeStructureMatch = text.match(/(?:^|\n)4\.\s+\*\*CODE STRUCTURE\*\*:?([\s\S]*?)(?=\n\d\.\s+\*\*|\n*$)/);
-    
-    return {
-      overview: overviewMatch ? overviewMatch[1].trim() : "Analysis unavailable",
-      architecture: architectureMatch ? architectureMatch[1].trim() : "Analysis unavailable",
-      installation: installationMatch ? installationMatch[1].trim() : "Analysis unavailable",
-      codeStructure: codeStructureMatch ? codeStructureMatch[1].trim() : "Analysis unavailable"
+    // Prepare the context with repository information
+    const repositoryContext = {
+      metadata: {
+        name: repoData.name,
+        description: repoData.description,
+        owner: repoData.owner.login,
+        language: repoData.language,
+        stars: repoData.stargazers_count,
+        forks: repoData.forks_count,
+        openIssues: repoData.open_issues_count,
+        createdAt: repoData.created_at,
+        updatedAt: repoData.updated_at,
+        defaultBranch: repoData.default_branch,
+        languages: languages
+      },
+      fileStructure: repoData.fileStructure || [],
+      fileListing: repoData.fileListing || []
     };
-  } catch (error) {
+
+    // Add retry logic for API calls
+    const maxRetries = 3;
+    let retryCount = 0;
+    let lastError = null;
+
+    while (retryCount < maxRetries) {
+      try {
+        const result = await model.generateContent([
+          {
+            text: `Analyze this GitHub repository and provide a comprehensive overview. Here's the repository information:\n\n${JSON.stringify(repositoryContext, null, 2)}\n\nPlease provide a detailed analysis including:\n1. Project overview and purpose\n2. Main features and functionality\n3. Technical architecture\n4. Key components and their relationships\n5. Development setup and requirements\n6. Best practices and code quality\n7. Potential improvements\n\nFormat the response as a structured analysis.`
+          }
+        ]);
+
+        const response = await result.response;
+        const text = response.text();
+        
+        // Parse the response and structure it
+        const analysis: RepositoryAnalysis = {
+          overview: text,
+          architecture: extractArchitecture(text),
+          features: extractFeatures(text),
+          setup: extractSetup(text),
+          improvements: extractImprovements(text)
+        };
+
+        return analysis;
+      } catch (error: any) {
+        lastError = error;
+        if (error.message?.includes('503') || error.message?.includes('overloaded')) {
+          // Wait before retrying (exponential backoff)
+          const waitTime = Math.pow(2, retryCount) * 1000;
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+          retryCount++;
+          continue;
+        }
+        // If it's not a 503 error, throw immediately
+        throw error;
+      }
+    }
+
+    // If we've exhausted all retries, throw the last error
+    throw lastError || new Error("Failed to analyze repository after multiple retries");
+  } catch (error: any) {
     console.error("Error analyzing repository:", error);
-    toast.error("Failed to analyze repository");
-    return null;
+    // Return a default analysis structure with error information
+    return {
+      overview: "Unable to generate repository analysis at this time. The AI service is currently unavailable.",
+      architecture: "Analysis pending",
+      features: "Analysis pending",
+      setup: "Analysis pending",
+      improvements: "Analysis pending"
+    };
   }
 };
 
@@ -125,41 +170,128 @@ export async function askGemini(question: string, context: any) {
   try {
     const model = genAI.getGenerativeModel(modelConfig);
 
-    // Get file structure information
-    const fileStructure = context.repository.fileStructure || [];
-    const fileStructureInfo = fileStructure.length > 0 
-      ? `\nFile Structure:\n${fileStructure.map((file: any) => `- ${file.path} (${file.type})`).join('\n')}`
-      : '';
+    // Validate and process repository data
+    if (!context || !context.metadata || !context.structure) {
+      throw new Error('Invalid repository context provided');
+    }
 
+    // Process file structure with validation
+    const fileStructure = context.structure.fileStructure || {};
+    const fileListing = Array.isArray(context.structure.fileListing) ? context.structure.fileListing : [];
+    const completeFileStructure = context.structure.completeFileStructure || '{}';
+
+    // Process metadata with validation
+    const metadata = {
+      name: context.metadata.name || 'Unknown Repository',
+      owner: context.metadata.owner || 'Unknown Owner',
+      description: context.metadata.description || 'No description available',
+      languages: Array.isArray(context.metadata.languages) ? context.metadata.languages : [],
+      contributors: Array.isArray(context.metadata.contributors) ? context.metadata.contributors : [],
+      readme: context.metadata.readme || 'No README available'
+    };
+
+    // Create a detailed file structure summary with validation
+    const fileStructureInfo = fileListing.length > 0 
+      ? `\nDetailed File Structure:\n${fileListing
+          .filter((file: any) => file && typeof file === 'object')
+          .map((file: any) => {
+            const fileInfo = {
+              path: file.path || 'unknown path',
+              type: file.type || 'unknown',
+              size: typeof file.size === 'number' ? file.size : 0,
+              language: file.language || 'unknown',
+              lastModified: file.lastModified || new Date().toISOString(),
+              content: file.content ? file.content.substring(0, 200) + '...' : 'No content available'
+            };
+            return `- ${fileInfo.path}
+             Type: ${fileInfo.type}
+             Size: ${fileInfo.size} bytes
+             Language: ${fileInfo.language}
+             Last Modified: ${fileInfo.lastModified}
+             Content Preview: ${fileInfo.content}`;
+          }).join('\n\n')}`
+      : 'No file structure information available';
+
+    // Create a comprehensive repository context with validated data
+    const repositoryContext = {
+      basic: metadata,
+      structure: {
+        totalFiles: fileListing.length,
+        fileTypes: [...new Set(fileListing.map((f: any) => f?.type).filter(Boolean))],
+        languages: [...new Set(fileListing.map((f: any) => f?.language).filter(Boolean))],
+        completeStructure: completeFileStructure
+      }
+    };
+
+    // Create a more focused prompt with clear instructions
     const prompt = `You are an AI assistant helping users understand a GitHub repository.
     Repository Context:
-    - Name: ${context.repository.name}
-    - Owner: ${context.repository.owner}
-    - Description: ${context.repository.description}
-    - Languages: ${JSON.stringify(context.repository.languages)}
-    - Contributors: ${JSON.stringify(context.repository.contributors)}
-    - README: ${context.repository.readme}
+    
+    Basic Information:
+    - Name: ${repositoryContext.basic.name}
+    - Owner: ${repositoryContext.basic.owner}
+    - Description: ${repositoryContext.basic.description}
+    - Languages: ${JSON.stringify(repositoryContext.basic.languages)}
+    - Contributors: ${JSON.stringify(repositoryContext.basic.contributors)}
+    - README: ${repositoryContext.basic.readme}
+
+    Repository Structure:
+    - Total Files: ${repositoryContext.structure.totalFiles}
+    - File Types: ${repositoryContext.structure.fileTypes.join(', ')}
+    - Detected Languages: ${repositoryContext.structure.languages.join(', ')}
+    
     ${fileStructureInfo}
 
     Previous conversation:
-    ${context.conversation.map((msg: any) => `${msg.role}: ${msg.content}`).join('\n')}
+    ${Array.isArray(context.conversation) 
+      ? context.conversation
+          .filter((msg: any) => msg && msg.role && msg.content)
+          .map((msg: any) => `${msg.role}: ${msg.content}`)
+          .join('\n')
+      : 'No previous conversation'}
 
     User question: ${question}
 
-    Please provide a helpful and concise response based on the repository context. 
-    If the question is about finding a specific file or functionality:
-    1. Use the file structure information to locate relevant files
-    2. Explain the purpose and location of the files
-    3. If possible, suggest the most relevant files for the user's query
-    4. If the file structure is not available, explain what information would be needed to better answer the question
-
+    Please provide a helpful and comprehensive response based on the repository context. 
+    Guidelines for your response:
+    1. If the question is about finding specific files or functionality:
+       - Use the detailed file structure to locate relevant files
+       - Explain the purpose and location of the files
+       - Suggest the most relevant files for the user's query
+       - Include file paths and their purposes
+       - If a file's content is available, reference it in your explanation
+    
+    2. If information is missing:
+       - Acknowledge what information is not available
+       - Explain what additional information would be helpful
+       - Provide guidance based on the available information
+       - Suggest alternative approaches based on the existing data
+    
+    3. For general questions:
+       - Use the complete repository context to provide insights
+       - Reference specific files and their purposes
+       - Explain the repository structure and organization
+       - Highlight key files and their relationships
+    
+    4. Response format:
+       - Start with a direct answer to the question
+       - Provide relevant file paths and their purposes
+       - Include specific examples from the file structure
+       - End with a summary of key points
+    
     Keep your response focused on helping the user understand the repository structure and locate relevant files.`;
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
-    return response.text();
+    const responseText = response.text();
+
+    if (!responseText) {
+      throw new Error('No response received from AI');
+    }
+
+    return responseText;
   } catch (error) {
     console.error("Error getting AI response:", error);
-    throw error;
+    throw new Error(`Failed to get AI response: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }

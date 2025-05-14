@@ -113,21 +113,44 @@ export const AIRepositoryAssistant = ({ fileTree }: AIRepositoryAssistantProps) 
     setShowScrollButton(true);
 
     try {
-      const context = {
-        repository: {
-          name: fileTree.name,
-          owner: fileTree.owner,
-          description: fileTree.description,
-          languages: fileTree.languages,
-          contributors: fileTree.contributors,
-          readme: fileTree.readme,
-          fileStructure: fileTree.fileStructure
+      // Validate fileTree and its properties
+      if (!fileTree) {
+        throw new Error('Repository information is not available');
+      }
+
+      // Create a detailed repository context with safe access
+      const repositoryContext = {
+        metadata: {
+          name: fileTree.name || 'Unknown',
+          owner: fileTree.owner || 'Unknown',
+          description: fileTree.description || '',
+          languages: fileTree.languages || [],
+          contributors: fileTree.contributors || [],
+          readme: fileTree.readme || '',
+        },
+        structure: {
+          fileStructure: fileTree.fileStructure || {},
+          completeFileStructure: fileTree.fileStructure ? JSON.stringify(fileTree.fileStructure, null, 2) : '{}',
+          // Safely create file listing with null checks
+          fileListing: fileTree.fileStructure ? 
+            Object.entries(fileTree.fileStructure).map(([path, info]) => ({
+              path,
+              type: info?.type || 'unknown',
+              size: info?.size || 0,
+              lastModified: info?.lastModified || new Date().toISOString(),
+              language: info?.language || 'unknown',
+              content: info?.content || null
+            })) : []
         },
         conversation: messages
       };
 
-      const response = await askGemini(input, context);
+      const response = await askGemini(input, repositoryContext);
       
+      if (!response) {
+        throw new Error('No response received from AI');
+      }
+
       const assistantMessage: Message = {
         role: 'assistant',
         content: response,
@@ -137,7 +160,16 @@ export const AIRepositoryAssistant = ({ fileTree }: AIRepositoryAssistantProps) 
       setMessages(prev => [...prev, assistantMessage]);
     } catch (error) {
       console.error('Error getting AI response:', error);
-      toast.error('Failed to get AI response');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to get AI response';
+      toast.error(errorMessage);
+      
+      // Add error message to chat
+      const errorResponse: Message = {
+        role: 'assistant',
+        content: `I apologize, but I encountered an error: ${errorMessage}. Please try again or rephrase your question.`,
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, errorResponse]);
     } finally {
       setIsLoading(false);
     }

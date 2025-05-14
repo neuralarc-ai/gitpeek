@@ -20,8 +20,21 @@ const StatisticsTab = lazy(() => import("./documentation/StatisticsTab").then(mo
 
 // Loading component for lazy-loaded tabs
 const TabLoading = () => (
-  <div className="flex items-center justify-center h-[500px]">
-    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+  <div className="flex flex-col items-center justify-center h-[500px] space-y-6">
+    <div className="relative">
+      <div className="animate-spin rounded-full h-16 w-16 border-4 border-primary/20 border-t-primary"></div>
+      <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+        <span className="text-3xl animate-bounce inline-block">⌛</span>
+      </div>
+    </div>
+    <div className="text-center space-y-3">
+      <p className="text-2xl font-semibold text-primary animate-pulse">
+        Loading...
+      </p>
+      <p className="text-lg text-muted-foreground animate-fade-in">
+        Grab a coffee meanwhile ☕
+      </p>
+    </div>
   </div>
 );
 
@@ -71,9 +84,10 @@ const fileTreeCache = new Map<string, { data: FileTree; timestamp: number }>();
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 export function TabNavigation({ owner, repo, onAnalysisUpdate }: TabNavigationProps) {
-  const [activeTab, setActiveTab] = useState("mindmap");
+  const [activeTab, setActiveTab] = useState("documentation");
   const [fileTree, setFileTree] = useState<FileTree | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isMindmapLoading, setIsMindmapLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [repoData, setRepoData] = useState<any>(null);
   const [languages, setLanguages] = useState<any>(null);
@@ -89,86 +103,116 @@ export function TabNavigation({ owner, repo, onAnalysisUpdate }: TabNavigationPr
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
+      setIsMindmapLoading(true);
       setError(null);
 
       try {
-        // First verify the repository exists
-        const initialRepoData = await fetchRepoData(owner, repo);
-        if (!initialRepoData) {
-          throw new Error("Repository not found or is private");
-        }
-        setRepoData(initialRepoData);
-
-        // Then load all other data in parallel
-        const [
-          languagesData,
-          readmeData,
-          contributorsData,
-          statsData,
-          treeData
-        ] = await Promise.allSettled([
+        // Start loading documentation data first
+        const [repoDataResult, languagesData, readmeData] = await Promise.allSettled([
+          fetchRepoData(owner, repo),
           fetchRepoLanguages(owner, repo),
-          fetchRepoReadme(owner, repo),
-          fetchRepoContributors(owner, repo),
-          fetchRepoStats(owner, repo),
-          buildFileTree(owner, repo)
+          fetchRepoReadme(owner, repo)
         ]);
 
-        // Handle each result
-        if (languagesData.status === 'fulfilled') setLanguages(languagesData.value);
-        if (readmeData.status === 'fulfilled') setReadme(readmeData.value);
-        if (contributorsData.status === 'fulfilled') setContributors(contributorsData.value);
-        if (statsData.status === 'fulfilled') setStats(statsData.value);
-        if (treeData.status === 'fulfilled') {
-          const tree = treeData.value;
-          setFileTree({
-            name: repo,
-            owner,
-            repo,
-            type: 'directory',
-            path: '',
-            children: tree.map(child => convertToFileTree(child, owner, repo))
-          });
+        // Handle repository data first
+        if (repoDataResult.status === 'fulfilled') {
+          const initialRepoData = repoDataResult.value;
+          if (!initialRepoData) {
+            throw new Error("Repository not found or is private");
+          }
+          setRepoData(initialRepoData);
+
+          // Generate AI analysis if we have the necessary data
+          if (initialRepoData) {
+            try {
+              const analysis = await analyzeRepository(
+                initialRepoData,
+                languagesData.status === 'fulfilled' ? languagesData.value : {}
+              );
+              setOverview(analysis?.overview || "Analysis pending");
+              if (onAnalysisUpdate) {
+                onAnalysisUpdate(analysis);
+              }
+            } catch (error) {
+              console.error("Error analyzing repository:", error);
+              setOverview("Unable to generate repository analysis at this time. The AI service is currently unavailable.");
+            }
+          }
+        } else {
+          throw new Error("Failed to fetch repository data");
         }
 
-        // Generate AI analysis if we have the necessary data
-        if (initialRepoData && treeData.status === 'fulfilled') {
+        // Handle initial documentation data
+        if (languagesData.status === 'fulfilled') setLanguages(languagesData.value);
+        if (readmeData.status === 'fulfilled') setReadme(readmeData.value);
+
+        // Mark documentation as loaded
+        setIsLoading(false);
+
+        // Load additional data in the background
+        Promise.allSettled([
+          fetchRepoContributors(owner, repo).then(data => {
+            if (data) setContributors(data);
+          }),
+          fetchRepoStats(owner, repo).then(data => {
+            if (data) setStats(data);
+          })
+        ]).catch(console.error);
+
+        // Start loading mindmap data in the background
+        const loadMindmapData = async () => {
           try {
-            const analysis = await analyzeRepository(initialRepoData, languagesData.status === 'fulfilled' ? languagesData.value : {});
-            setOverview(analysis.overview);
-            if (onAnalysisUpdate) {
-              onAnalysisUpdate(analysis);
+            const treeData = await buildFileTree(owner, repo);
+            if (treeData) {
+              setFileTree({
+                name: repo,
+                owner,
+                repo,
+                type: 'directory',
+                path: '',
+                children: treeData.map(child => convertToFileTree(child, owner, repo))
+              });
             }
           } catch (error) {
-            console.error("Error analyzing repository:", error);
-            // Don't throw here, just log the error
+            console.error("Error loading mindmap data:", error);
+          } finally {
+            setIsMindmapLoading(false);
           }
-        }
+        };
+
+        // Start mindmap loading without awaiting
+        loadMindmapData();
       } catch (error) {
         console.error("Error loading repository data:", error);
         setError("Failed to load repository data");
         toast.error("Failed to load repository data");
         navigate("/");
-      } finally {
-        setIsLoading(false);
       }
     };
 
     loadData();
   }, [owner, repo, navigate, onAnalysisUpdate]);
 
-  // Prefetch documentation tab data when hovering
-  const handleTabHover = (tab: string) => {
-    if (tab === "documentation" && !isLoading) {
-      // Prefetch documentation data
-      import("./documentation/OverviewTab");
-      import("./documentation/CodeTab");
-      import("./documentation/ReadmeTab");
-      import("./documentation/ContributorsTab");
-      import("./documentation/InstallationTab");
-      import("./documentation/StatisticsTab");
-    }
-  };
+  // Prefetch documentation tab data immediately
+  useEffect(() => {
+    // Prefetch all documentation tabs
+    const prefetchTabs = async () => {
+      try {
+        await Promise.all([
+          import("./documentation/OverviewTab"),
+          import("./documentation/CodeTab"),
+          import("./documentation/ReadmeTab"),
+          import("./documentation/ContributorsTab"),
+          import("./documentation/InstallationTab"),
+          import("./documentation/StatisticsTab")
+        ]);
+      } catch (error) {
+        console.error("Error prefetching tabs:", error);
+      }
+    };
+
+    prefetchTabs();
+  }, []);
 
   if (error) {
     return (
@@ -182,13 +226,107 @@ export function TabNavigation({ owner, repo, onAnalysisUpdate }: TabNavigationPr
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
       <TabsList className="w-full justify-start">
-        <TabsTrigger value="mindmap">Mindmap</TabsTrigger>
         <TabsTrigger value="documentation">Documentation</TabsTrigger>
+        <TabsTrigger value="mindmap">Mindmap</TabsTrigger>
         <TabsTrigger value="files">Files</TabsTrigger>
       </TabsList>
 
-      <TabsContent value="mindmap" className="mt-6">
+      <TabsContent value="documentation" className="mt-6">
         {isLoading ? (
+          <div className="flex flex-col items-center justify-center h-[500px] space-y-6">
+            <div className="relative">
+              <div className="animate-spin rounded-full h-16 w-16 border-4 border-primary/20 border-t-primary"></div>
+              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                <span className="text-3xl animate-bounce inline-block">⌛</span>
+              </div>
+            </div>
+            <div className="text-center space-y-3">
+              <p className="text-2xl font-semibold text-primary animate-pulse">
+                Loading...
+              </p>
+              <p className="text-lg text-muted-foreground animate-fade-in">
+                Grab a coffee meanwhile ☕
+              </p>
+            </div>
+          </div>
+        ) : (
+          <Tabs defaultValue="overview" className="w-full">
+            <TabsList className="w-full justify-start">
+              <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="code">Code</TabsTrigger>
+              <TabsTrigger value="contributors">Contributors</TabsTrigger>
+              <TabsTrigger value="installation">Installation</TabsTrigger>
+              <TabsTrigger value="statistics">Statistics</TabsTrigger>
+              <TabsTrigger value="readme">README</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="overview" className="mt-6">
+              <Suspense fallback={<TabLoading />}>
+                <OverviewTab
+                  overview={overview}
+                  repoData={repoData}
+                  languages={languages}
+                  stats={stats}
+                  isLoading={isLoading}
+                />
+              </Suspense>
+            </TabsContent>
+
+            <TabsContent value="code" className="mt-6">
+              <Suspense fallback={<TabLoading />}>
+                <CodeTab
+                  architecture={overview || ""}
+                  codeStructure={fileTree || undefined}
+                  isLoading={isLoading}
+                />
+              </Suspense>
+            </TabsContent>
+
+            <TabsContent value="contributors" className="mt-6">
+              <Suspense fallback={<TabLoading />}>
+                <ContributorsTab
+                  contributors={contributors}
+                  isLoading={isLoading}
+                />
+              </Suspense>
+            </TabsContent>
+
+            <TabsContent value="installation" className="mt-6">
+              <Suspense fallback={<TabLoading />}>
+                <InstallationTab
+                  installation={overview || ""}
+                  readme={readme || ""}
+                  repoData={repoData}
+                  isLoading={isLoading}
+                />
+              </Suspense>
+            </TabsContent>
+
+            <TabsContent value="statistics" className="mt-6">
+              <Suspense fallback={<TabLoading />}>
+                <StatisticsTab
+                  stats={stats}
+                  languages={languages}
+                  repoData={repoData}
+                  isLoading={isLoading}
+                />
+              </Suspense>
+            </TabsContent>
+
+            <TabsContent value="readme" className="mt-6">
+              <Suspense fallback={<TabLoading />}>
+                <ReadmeTab
+                  readme={readme}
+                  isLoading={isLoading}
+                />
+              </Suspense>
+            </TabsContent>
+          </Tabs>
+        )}
+      </TabsContent>
+
+      <TabsContent value="mindmap" className="mt-6">
+        {isMindmapLoading ? (
           <TabLoading />
         ) : fileTree ? (
           <MindmapVisualization fileTree={fileTree} />
@@ -199,83 +337,8 @@ export function TabNavigation({ owner, repo, onAnalysisUpdate }: TabNavigationPr
         )}
       </TabsContent>
 
-      <TabsContent value="documentation" className="mt-6">
-        <Tabs defaultValue="overview" className="w-full">
-          <TabsList className="w-full justify-start">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="code">Code</TabsTrigger>
-            <TabsTrigger value="contributors">Contributors</TabsTrigger>
-            <TabsTrigger value="installation">Installation</TabsTrigger>
-            <TabsTrigger value="statistics">Statistics</TabsTrigger>
-            <TabsTrigger value="readme">README</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="overview">
-            <Suspense fallback={<TabLoading />}>
-              <OverviewTab
-                overview={overview}
-                repoData={repoData}
-                languages={languages}
-                stats={stats}
-                isLoading={isLoading}
-              />
-            </Suspense>
-          </TabsContent>
-
-          <TabsContent value="code">
-            <Suspense fallback={<TabLoading />}>
-              <CodeTab
-                architecture={overview || ""}
-                codeStructure={fileTree || undefined}
-                isLoading={isLoading}
-              />
-            </Suspense>
-          </TabsContent>
-
-          <TabsContent value="contributors">
-            <Suspense fallback={<TabLoading />}>
-              <ContributorsTab
-                contributors={contributors}
-                isLoading={isLoading}
-              />
-            </Suspense>
-          </TabsContent>
-
-          <TabsContent value="installation">
-            <Suspense fallback={<TabLoading />}>
-              <InstallationTab
-                installation={overview || ""}
-                readme={readme || ""}
-                repoData={repoData}
-                isLoading={isLoading}
-              />
-            </Suspense>
-          </TabsContent>
-
-          <TabsContent value="statistics">
-            <Suspense fallback={<TabLoading />}>
-              <StatisticsTab
-                stats={stats}
-                languages={languages}
-                repoData={repoData}
-                isLoading={isLoading}
-              />
-            </Suspense>
-          </TabsContent>
-
-          <TabsContent value="readme">
-            <Suspense fallback={<TabLoading />}>
-              <ReadmeTab
-                readme={readme}
-                isLoading={isLoading}
-              />
-            </Suspense>
-          </TabsContent>
-        </Tabs>
-      </TabsContent>
-
       <TabsContent value="files" className="mt-6">
-        {isLoading ? (
+        {isMindmapLoading ? (
           <TabLoading />
         ) : fileTree ? (
           <FileExplorer fileTree={fileTree} />
