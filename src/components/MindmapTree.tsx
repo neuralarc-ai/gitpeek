@@ -85,12 +85,12 @@ const glowAnimation = `
 }
 `;
 
-// Add font size calculation constants
+// Add these constants at the top of the file after imports
 const MIN_FONT_SIZE = 8;
 const MAX_FONT_SIZE = 14;
+const BASE_FONT_SIZE = 12;
 const MIN_ZOOM_LEVEL = 0.5;
 const MAX_ZOOM_LEVEL = 4;
-const MIN_NODE_DISTANCE = 30; // Minimum distance between nodes to prevent overlap
 
 export const MindmapTree: React.FC<MindmapTreeProps> = ({
   data,
@@ -368,102 +368,11 @@ export const MindmapTree: React.FC<MindmapTreeProps> = ({
     return {};
   };
 
-  // Add function to calculate optimal font size based on zoom and node density
-  const calculateFontSize = (globalScale: number, node: any, nodes: any[]) => {
-    // Base font size calculation based on zoom level
-    let fontSize = Math.max(
-      MIN_FONT_SIZE,
-      Math.min(MAX_FONT_SIZE, 12 / globalScale)
-    );
-
-    // Check for nearby nodes to prevent overlap
-    const nearbyNodes = nodes.filter((otherNode: any) => {
-      if (otherNode === node) return false;
-      const dx = otherNode.x - node.x;
-      const dy = otherNode.y - node.y;
-      const distance = Math.sqrt(dx * dx + dy * dy);
-      return distance < MIN_NODE_DISTANCE / globalScale;
-    });
-
-    // Reduce font size if there are nearby nodes
-    if (nearbyNodes.length > 0) {
-      fontSize = Math.max(MIN_FONT_SIZE, fontSize * 0.8);
-    }
-
-    return fontSize;
-  };
-
-  // Add function to calculate text width
-  const getTextWidth = (text: string, fontSize: number) => {
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d');
-    if (!context) return 0;
-    context.font = `${fontSize}px Fustat, sans-serif`;
-    return context.measureText(text).width;
-  };
-
-  // Update nodeCanvasObject function with improved text rendering
-  const nodeCanvasObject = (node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
-    const label = node.name;
-    const fontSize = calculateFontSize(globalScale, node, graphData.nodes);
-    ctx.font = `${fontSize}px Fustat, sans-serif`;
-    
-    // Calculate text width for overlap prevention
-    const textWidth = getTextWidth(label, fontSize);
-    const textHeight = fontSize;
-    
-    // Draw node icon
-    const iconSize = 16 / globalScale;
-    const iconX = node.x! - iconSize / 2;
-    const iconY = node.y! - iconSize / 2;
-    
-    // Apply enhanced glow effect for matching nodes
-    if (node.color === "#4ade80") {
-      ctx.shadowColor = "#4ade80";
-      ctx.shadowBlur = 20;
-      ctx.shadowOffsetX = 0;
-      ctx.shadowOffsetY = 0;
-    }
-    
-    // Draw node circle
-    if (node.type === "folder") {
-      ctx.fillStyle = "#58a6ff";
-      ctx.beginPath();
-      ctx.arc(node.x!, node.y!, 6 / globalScale, 0, 2 * Math.PI);
-      ctx.fill();
-    } else {
-      ctx.fillStyle = node.color === "#4ade80" ? "#4ade80" : "#c9d1d9";
-      ctx.beginPath();
-      ctx.arc(node.x!, node.y!, 4 / globalScale, 0, 2 * Math.PI);
-      ctx.fill();
-    }
-
-    // Reset shadow
-    ctx.shadowBlur = 0;
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 0;
-
-    // Draw label with background for better readability
-    const labelY = node.y! + 15 / globalScale;
-    const padding = 4 / globalScale;
-    
-    // Draw semi-transparent background for text
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-    ctx.beginPath();
-    ctx.roundRect(
-      node.x! - textWidth / 2 - padding,
-      labelY - textHeight / 2 - padding,
-      textWidth + padding * 2,
-      textHeight + padding * 2,
-      4 / globalScale
-    );
-    ctx.fill();
-
-    // Draw text
-    ctx.fillStyle = node.color === "#4ade80" ? "#4ade80" : "#c9d1d9";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(label, node.x!, labelY);
+  // Add this function before the return statement
+  const calculateFontSize = (globalScale: number) => {
+    const clampedScale = Math.max(MIN_ZOOM_LEVEL, Math.min(MAX_ZOOM_LEVEL, globalScale));
+    const fontSize = BASE_FONT_SIZE / clampedScale;
+    return Math.max(MIN_FONT_SIZE, Math.min(MAX_FONT_SIZE, fontSize));
   };
 
   return (
@@ -565,21 +474,60 @@ export const MindmapTree: React.FC<MindmapTreeProps> = ({
         onNodeClick={(node) => {
           setSelectedNode(node);
         }}
-        nodeCanvasObject={nodeCanvasObject}
+        nodeCanvasObject={(node: any, ctx, globalScale) => {
+          const label = node.name;
+          const fontSize = calculateFontSize(globalScale);
+          ctx.font = `${fontSize}px Fustat, sans-serif`;
+          
+          // Calculate text width for overlap prevention
+          const textWidth = ctx.measureText(label).width;
+          const nodeRadius = node.type === "folder" ? 6 / globalScale : 4 / globalScale;
+          const padding = 4 / globalScale;
+          
+          // Draw node icon
+          const iconSize = 16 / globalScale;
+          const iconX = node.x! - iconSize / 2;
+          const iconY = node.y! - iconSize / 2;
+          
+          // Apply enhanced glow effect for matching nodes
+          if (node.color === "#4ade80") {
+            ctx.shadowColor = "#4ade80";
+            ctx.shadowBlur = 20;
+            ctx.shadowOffsetX = 0;
+            ctx.shadowOffsetY = 0;
+          }
+          
+          if (node.type === "folder") {
+            ctx.fillStyle = "#58a6ff";
+            ctx.beginPath();
+            ctx.arc(node.x!, node.y!, nodeRadius, 0, 2 * Math.PI);
+            ctx.fill();
+          } else {
+            ctx.fillStyle = node.color === "#4ade80" ? "#4ade80" : "#c9d1d9";
+            ctx.beginPath();
+            ctx.arc(node.x!, node.y!, nodeRadius, 0, 2 * Math.PI);
+            ctx.fill();
+          }
+
+          // Reset shadow
+          ctx.shadowBlur = 0;
+          ctx.shadowOffsetX = 0;
+          ctx.shadowOffsetY = 0;
+
+          // Draw label with enhanced visibility for matching nodes
+          ctx.fillStyle = node.color === "#4ade80" ? "#4ade80" : "#c9d1d9";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          
+          // Calculate vertical offset based on zoom level
+          const verticalOffset = (nodeRadius + padding + fontSize / 2) / globalScale;
+          ctx.fillText(label, node.x!, node.y! + verticalOffset);
+        }}
         onNodeDrag={(node) => {
           if (!node) return;
           node.fx = node.x;
           node.fy = node.y;
         }}
-        // Add zoom constraints
-        minZoom={MIN_ZOOM_LEVEL}
-        maxZoom={MAX_ZOOM_LEVEL}
-        // Improve node spacing
-        d3AlphaDecay={0.02}
-        d3VelocityDecay={0.3}
-        linkDistance={50}
-        nodeRelSize={6}
-        cooldownTicks={100}
       />
 
       <Dialog.Root open={!!selectedNode} onOpenChange={() => setSelectedNode(null)}>
