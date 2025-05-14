@@ -45,12 +45,43 @@ interface GraphData {
   links: GraphLink[];
 }
 
-// Add this CSS animation at the top of the file, after imports
+// Add Safari-specific styles and optimizations
+const safariStyles = `
+  @supports (-webkit-touch-callout: none) {
+    .safari-optimized {
+      -webkit-font-smoothing: antialiased;
+      -webkit-backface-visibility: hidden;
+      -webkit-transform: translateZ(0);
+      transform: translateZ(0);
+    }
+    
+    .safari-blur {
+      -webkit-backdrop-filter: blur(8px);
+      backdrop-filter: blur(8px);
+    }
+    
+    .safari-glow {
+      -webkit-filter: drop-shadow(0 0 4px #4ade80) drop-shadow(0 0 8px #4ade80);
+      filter: drop-shadow(0 0 4px #4ade80) drop-shadow(0 0 8px #4ade80);
+    }
+  }
+`;
+
+// Update the glow animation for Safari
 const glowAnimation = `
 @keyframes glow {
-  0% { filter: drop-shadow(0 0 2px #ffd700); }
-  50% { filter: drop-shadow(0 0 8px #ffd700); }
-  100% { filter: drop-shadow(0 0 2px #ffd700); }
+  0% { 
+    -webkit-filter: drop-shadow(0 0 4px #4ade80) drop-shadow(0 0 8px #4ade80);
+    filter: drop-shadow(0 0 4px #4ade80) drop-shadow(0 0 8px #4ade80);
+  }
+  50% { 
+    -webkit-filter: drop-shadow(0 0 8px #4ade80) drop-shadow(0 0 16px #4ade80);
+    filter: drop-shadow(0 0 8px #4ade80) drop-shadow(0 0 16px #4ade80);
+  }
+  100% { 
+    -webkit-filter: drop-shadow(0 0 4px #4ade80) drop-shadow(0 0 8px #4ade80);
+    filter: drop-shadow(0 0 4px #4ade80) drop-shadow(0 0 8px #4ade80);
+  }
 }
 `;
 
@@ -66,6 +97,8 @@ export const MindmapTree: React.FC<MindmapTreeProps> = ({
   const [fileType, setFileType] = useState("all");
   const [isSearching, setIsSearching] = useState(false);
   const [showSearchBox, setShowSearchBox] = useState(false);
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
+  const [matchingNodes, setMatchingNodes] = useState<GraphNode[]>([]);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const fgRef = useRef<any>();
 
@@ -80,6 +113,25 @@ export const MindmapTree: React.FC<MindmapTreeProps> = ({
     { value: "json", label: "JSON" },
     { value: "md", label: "Markdown" },
   ];
+
+  // Add Safari detection
+  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+
+  // Optimize graph rendering for Safari
+  const graphConfig = useMemo(() => ({
+    nodeAutoColorBy: "type",
+    nodeLabel: "name",
+    linkColor: () => "#666",
+    linkWidth: 1,
+    nodeRelSize: 6,
+    cooldownTicks: isSafari ? 150 : 100, // Increase cooldown for Safari
+    linkDirectionalParticles: isSafari ? 1 : 2, // Reduce particles for Safari
+    linkDirectionalParticleSpeed: 0.005,
+    linkDirectionalParticleWidth: 2,
+    linkDirectionalParticleColor: () => "#666",
+    d3AlphaDecay: isSafari ? 0.02 : 0.01, // Adjust for Safari performance
+    d3VelocityDecay: isSafari ? 0.3 : 0.4, // Adjust for Safari performance
+  }), [isSafari]);
 
   // Add keyboard shortcut handler
   useEffect(() => {
@@ -116,6 +168,34 @@ export const MindmapTree: React.FC<MindmapTreeProps> = ({
       
       fgRef.current.graphData = currentData;
       fgRef.current.zoomToFit(400);
+      setMatchingNodes([]);
+      setCurrentMatchIndex(0);
+    }
+  };
+
+  const navigateToNextMatch = () => {
+    if (matchingNodes.length === 0) return;
+    
+    const nextIndex = (currentMatchIndex + 1) % matchingNodes.length;
+    setCurrentMatchIndex(nextIndex);
+    
+    const node = matchingNodes[nextIndex];
+    if (fgRef.current && node) {
+      fgRef.current.centerAt(node.x, node.y, 1000);
+      fgRef.current.zoom(3.5, 1000);
+    }
+  };
+
+  const navigateToPreviousMatch = () => {
+    if (matchingNodes.length === 0) return;
+    
+    const prevIndex = (currentMatchIndex - 1 + matchingNodes.length) % matchingNodes.length;
+    setCurrentMatchIndex(prevIndex);
+    
+    const node = matchingNodes[prevIndex];
+    if (fgRef.current && node) {
+      fgRef.current.centerAt(node.x, node.y, 1000);
+      fgRef.current.zoom(3.5, 1000);
     }
   };
 
@@ -132,7 +212,7 @@ export const MindmapTree: React.FC<MindmapTreeProps> = ({
         links: [...graphData.links]
       };
 
-      const matchingNodes = currentData.nodes.filter((node: GraphNode) => {
+      const matches = currentData.nodes.filter((node: GraphNode) => {
         if (fileType !== 'all' && node.type === 'folder') {
           return false;
         }
@@ -147,7 +227,7 @@ export const MindmapTree: React.FC<MindmapTreeProps> = ({
         return nameMatches && typeMatches;
       });
 
-      if (matchingNodes.length === 0) {
+      if (matches.length === 0) {
         toast.info("No matching files found");
         resetSearch();
         return;
@@ -158,31 +238,31 @@ export const MindmapTree: React.FC<MindmapTreeProps> = ({
         node.color = node.type === "folder" ? "#58a6ff" : "#c9d1d9";
       });
 
-      // Highlight matching nodes
-      matchingNodes.forEach((node: GraphNode) => {
-        node.color = "#ffd700";
+      // Highlight matching nodes with brighter green
+      matches.forEach((node: GraphNode) => {
+        node.color = "#4ade80"; // Brighter green color for matches
       });
 
       if (fgRef.current) {
         fgRef.current.graphData = currentData;
+        setMatchingNodes(matches);
+        setCurrentMatchIndex(0);
         
-        if (matchingNodes.length > 0) {
-          const firstMatch = matchingNodes[0];
+        if (matches.length > 0) {
+          const firstMatch = matches[0];
           setTimeout(() => {
             if (fgRef.current) {
-              // Center on the first matching node
               fgRef.current.centerAt(firstMatch.x, firstMatch.y, 1000);
-              // Increase zoom level for better visibility
               fgRef.current.zoom(3.5, 1000);
             }
           }, 100);
         }
       }
 
-      if (matchingNodes.length === 1) {
-        toast.success(`Found 1 matching file: ${matchingNodes[0].name}`);
+      if (matches.length === 1) {
+        toast.success(`Found 1 matching file: ${matches[0].name}`);
       } else {
-        toast.success(`Found ${matchingNodes.length} matching files`);
+        toast.success(`Found ${matches.length} matching files. Use ← → to navigate`);
       }
     } catch (error) {
       console.error("Search error:", error);
@@ -191,6 +271,22 @@ export const MindmapTree: React.FC<MindmapTreeProps> = ({
       setIsSearching(false);
     }
   };
+
+  // Add keyboard navigation for search results
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (matchingNodes.length > 0) {
+        if (e.key === 'ArrowRight') {
+          navigateToNextMatch();
+        } else if (e.key === 'ArrowLeft') {
+          navigateToPreviousMatch();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [matchingNodes, currentMatchIndex]);
 
   // Convert tree data to graph format
   const graphData = useMemo<GraphData>(() => {
@@ -266,13 +362,16 @@ export const MindmapTree: React.FC<MindmapTreeProps> = ({
   };
 
   return (
-    <div className="relative">
+    <div className="relative safari-optimized">
+      <style>{safariStyles}</style>
+      <style>{glowAnimation}</style>
+      
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-2">
-        <div className="flex items-center gap-2 bg-background/80 backdrop-blur-sm p-2 rounded-lg border border-white/20 shadow-lg">
+        <div className="flex items-center gap-2 bg-background/95 safari-blur p-2 rounded-lg border border-white/20 shadow-lg">
           <div className="relative">
             <Input
               ref={searchInputRef}
-              placeholder="Search files... (Ctrl/Cmd + K)"
+              placeholder="Search files... (⌘K)"
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
@@ -285,7 +384,11 @@ export const MindmapTree: React.FC<MindmapTreeProps> = ({
                   handleSearch();
                 }
               }}
-              className="w-[300px] bg-white/10 backdrop-blur-md border-white/20 focus:border-primary/50"
+              className="w-[300px] bg-white/10 safari-blur border-white/20 focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all duration-200"
+              style={{
+                WebkitAppearance: 'none',
+                WebkitTapHighlightColor: 'transparent',
+              }}
             />
             {searchQuery && (
               <button
@@ -293,14 +396,24 @@ export const MindmapTree: React.FC<MindmapTreeProps> = ({
                   setSearchQuery("");
                   resetSearch();
                 }}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                style={{
+                  WebkitAppearance: 'none',
+                  WebkitTapHighlightColor: 'transparent',
+                }}
               >
                 <X className="h-4 w-4" />
               </button>
             )}
           </div>
           <Select value={fileType} onValueChange={setFileType}>
-            <SelectTrigger className="w-[120px] bg-white/10 backdrop-blur-md border-white/20">
+            <SelectTrigger 
+              className="w-[120px] bg-white/10 safari-blur border-white/20 focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all duration-200"
+              style={{
+                WebkitAppearance: 'none',
+                WebkitTapHighlightColor: 'transparent',
+              }}
+            >
               <SelectValue placeholder="Type" />
             </SelectTrigger>
             <SelectContent>
@@ -314,14 +427,26 @@ export const MindmapTree: React.FC<MindmapTreeProps> = ({
           <Button 
             onClick={handleSearch} 
             disabled={isSearching}
-            className="bg-primary/10 hover:bg-primary/20 backdrop-blur-md border border-white/20"
+            className="bg-primary/10 hover:bg-primary/20 safari-blur border border-white/20 focus:ring-1 focus:ring-primary/50 transition-all duration-200"
+            style={{
+              WebkitAppearance: 'none',
+              WebkitTapHighlightColor: 'transparent',
+            }}
           >
             {isSearching ? "Searching..." : <Search className="h-4 w-4" />}
           </Button>
         </div>
         {searchQuery && (
-          <div className="text-sm text-muted-foreground">
-            Press Enter to search, Esc to clear
+          <div className="text-sm text-muted-foreground flex items-center gap-2">
+            <span>Press Enter to search, Esc to clear</span>
+            {matchingNodes.length > 0 && (
+              <span className="flex items-center gap-1">
+                <span>← → to navigate</span>
+                <span className="px-2 py-0.5 bg-green-500/20 rounded text-green-500">
+                  {currentMatchIndex + 1}/{matchingNodes.length}
+                </span>
+              </span>
+            )}
           </div>
         )}
       </div>
@@ -331,21 +456,10 @@ export const MindmapTree: React.FC<MindmapTreeProps> = ({
         graphData={graphData}
         width={1280}
         height={720}
-        nodeAutoColorBy="type"
-        nodeLabel="name"
-        linkColor={() => "#666"}
-        linkWidth={1}
-        nodeRelSize={6}
-        cooldownTicks={100}
+        {...graphConfig}
         onNodeClick={(node) => {
           setSelectedNode(node);
         }}
-        // Force layout configuration for tree structure
-        linkDirectionalParticles={2}
-        linkDirectionalParticleSpeed={0.005}
-        linkDirectionalParticleWidth={2}
-        linkDirectionalParticleColor={() => "#666"}
-        // Node rendering
         nodeCanvasObject={(node: any, ctx, globalScale) => {
           const label = node.name;
           const fontSize = 12 / globalScale;
@@ -356,10 +470,12 @@ export const MindmapTree: React.FC<MindmapTreeProps> = ({
           const iconX = node.x! - iconSize / 2;
           const iconY = node.y! - iconSize / 2;
           
-          // Apply glow effect for matching nodes
-          if (node.color === "#ffd700") {
-            ctx.shadowColor = "#ffd700";
-            ctx.shadowBlur = 10;
+          // Apply enhanced glow effect for matching nodes
+          if (node.color === "#4ade80") {
+            ctx.shadowColor = "#4ade80";
+            ctx.shadowBlur = 20;
+            ctx.shadowOffsetX = 0;
+            ctx.shadowOffsetY = 0;
           }
           
           if (node.type === "folder") {
@@ -368,7 +484,7 @@ export const MindmapTree: React.FC<MindmapTreeProps> = ({
             ctx.arc(node.x!, node.y!, 6 / globalScale, 0, 2 * Math.PI);
             ctx.fill();
           } else {
-            ctx.fillStyle = "#c9d1d9";
+            ctx.fillStyle = node.color === "#4ade80" ? "#4ade80" : "#c9d1d9";
             ctx.beginPath();
             ctx.arc(node.x!, node.y!, 4 / globalScale, 0, 2 * Math.PI);
             ctx.fill();
@@ -376,9 +492,11 @@ export const MindmapTree: React.FC<MindmapTreeProps> = ({
 
           // Reset shadow
           ctx.shadowBlur = 0;
+          ctx.shadowOffsetX = 0;
+          ctx.shadowOffsetY = 0;
 
-          // Draw label
-          ctx.fillStyle = "#c9d1d9";
+          // Draw label with enhanced visibility for matching nodes
+          ctx.fillStyle = node.color === "#4ade80" ? "#4ade80" : "#c9d1d9";
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
           ctx.fillText(label, node.x!, node.y! + 15 / globalScale);
@@ -390,13 +508,10 @@ export const MindmapTree: React.FC<MindmapTreeProps> = ({
         }}
       />
 
-      {/* Add the style tag for the glow animation */}
-      <style>{glowAnimation}</style>
-
       <Dialog.Root open={!!selectedNode} onOpenChange={() => setSelectedNode(null)}>
         <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm" />
-          <Dialog.Content className="fixed top-1/2 left-1/2 bg-gitpeek-card border border-gitpeek-border text-foreground p-6 rounded-lg shadow-lg w-[400px] max-h-[80vh] overflow-y-auto -translate-x-1/2 -translate-y-1/2">
+          <Dialog.Overlay className="fixed inset-0 bg-black/50 safari-blur" />
+          <Dialog.Content className="fixed top-1/2 left-1/2 bg-gitpeek-card border border-gitpeek-border text-foreground p-6 rounded-lg shadow-lg w-[400px] max-h-[80vh] overflow-y-auto -translate-x-1/2 -translate-y-1/2 safari-optimized">
             <Dialog.Description className="sr-only">
               Details for {selectedNode?.name}
             </Dialog.Description>
