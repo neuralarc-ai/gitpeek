@@ -27,7 +27,7 @@ const ResultsPage = () => {
       <header className="w-full border-b border-gitpeek-border">
         <div className="container py-4 flex justify-center">
           <div 
-            className="cursor-pointer hover:opacity-80 transition-opacity" 
+            className="cursor-pointer hover:opacity-80 transition-all duration-300 hover:scale-105" 
             onClick={() => navigate("/")}
           >
             <Logo size="xlarge" />
@@ -36,34 +36,40 @@ const ResultsPage = () => {
       </header>
       
       <main className="flex-1 container py-6 space-y-6">
-        <RepositoryHeader 
-          repoName={repo} 
-          repoOwner={owner} 
-          repoUrl={repoUrl}
-          analysis={analysis}
-        />
+        <div className="animate-fadeIn">
+          <RepositoryHeader 
+            repoName={repo} 
+            repoOwner={owner} 
+            repoUrl={repoUrl}
+            analysis={analysis}
+          />
+        </div>
         
-        <TabNavigation 
-          owner={owner} 
-          repo={repo} 
-          onAnalysisUpdate={setAnalysis}
-        />
+        <div className="animate-slideUp">
+          <TabNavigation 
+            owner={owner} 
+            repo={repo} 
+            onAnalysisUpdate={setAnalysis}
+          />
+        </div>
       </main>
 
       {/* Global AI Assistant */}
-      <AIRepositoryAssistant 
-        fileTree={{
-          name: repo,
-          owner,
-          repo,
-          type: 'directory',
-          path: '',
-          children: []
-        }}
-      />
+      <div className="animate-fadeIn">
+        <AIRepositoryAssistant 
+          fileTree={{
+            name: repo,
+            owner,
+            repo,
+            type: 'directory',
+            path: '',
+            children: []
+          }}
+        />
+      </div>
       
       <footer className="mt-auto border-t border-gitpeek-border py-4">
-        <div className="container text-center text-muted-foreground text-sm">
+        <div className="container text-center text-muted-foreground text-sm animate-fadeIn">
           Gitpeek &copy; 2025 | Developer-focused GitHub repository analyzer
         </div>
       </footer>

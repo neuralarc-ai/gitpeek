@@ -9,25 +9,25 @@ const Index = () => {
     <div className="min-h-screen flex flex-col">
       <div className="flex-1 flex flex-col items-center justify-center p-4 md:p-8 bg-gradient-to-b from-background to-background/95">
         <div className="w-full max-w-4xl mx-auto flex flex-col items-center">
-          <div className="mb-12 flex flex-col items-center gap-4 animate-float">
+          <div className="mb-12 flex flex-col items-center gap-4 animate-scaleIn">
             <Logo size="xlarge" />
-            <h1 className={`${typography.h1} text-center max-w-md bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/60`}>
+            <h1 className={`${typography.h1} text-center max-w-md bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/60 animate-fadeIn`}>
               Dive Into GitHub Repositories
             </h1>
           </div>
           
-          <div className={`${glassmorphism.card.base} ${glassmorphism.card.hover} w-full p-6`}>
+          <div className={`${glassmorphism.card.base} ${glassmorphism.card.hover} w-full p-6 animate-slideUp`}>
             <RepoInput />
           </div>
           
-          <div className="mt-12 text-center text-muted-foreground text-sm">
+          <div className="mt-12 text-center text-muted-foreground text-sm animate-fadeIn">
             <p>Enter a GitHub repository URL to analyze its structure, architecture, and documentation.</p>
             <p className="mt-2">Built for developers. Powered by GitHub API and Gemini AI.</p>
           </div>
 
           {/* GitHub Features Section */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">
-            <div className={`${glassmorphism.card.base} ${glassmorphism.card.hover} p-6`}>
+            <div className={`${glassmorphism.card.base} ${glassmorphism.card.hover} p-6 hover-lift animate-slideIn`}>
               <div className="flex items-center gap-3 mb-3">
                 <Code className="w-5 h-5 text-primary" />
                 <h3 className="font-semibold">Code Analysis</h3>
@@ -37,7 +37,7 @@ const Index = () => {
               </p>
             </div>
 
-            <div className={`${glassmorphism.card.base} ${glassmorphism.card.hover} p-6`}>
+            <div className={`${glassmorphism.card.base} ${glassmorphism.card.hover} p-6 hover-lift animate-slideIn`} style={{ animationDelay: '100ms' }}>
               <div className="flex items-center gap-3 mb-3">
                 <BookOpen className="w-5 h-5 text-primary" />
                 <h3 className="font-semibold">Documentation</h3>
@@ -47,7 +47,7 @@ const Index = () => {
               </p>
             </div>
 
-            <div className={`${glassmorphism.card.base} ${glassmorphism.card.hover} p-6`}>
+            <div className={`${glassmorphism.card.base} ${glassmorphism.card.hover} p-6 hover-lift animate-slideIn`} style={{ animationDelay: '200ms' }}>
               <div className="flex items-center gap-3 mb-3">
                 <Users className="w-5 h-5 text-primary" />
                 <h3 className="font-semibold">Collaboration</h3>
@@ -59,10 +59,10 @@ const Index = () => {
           </div>
 
           {/* GitHub Integration */}
-          <div className="mt-12 flex flex-col items-center gap-4">
+          <div className="mt-12 flex flex-col items-center gap-4 animate-fadeIn">
             <Button
               variant="outline"
-              className={`${glassmorphism.button.secondary} gap-2`}
+              className={`${glassmorphism.button.secondary} gap-2 hover-scale`}
               onClick={() => window.open('https://github.com', '_blank')}
             >
               <Github className="w-4 h-4" />
@@ -74,13 +74,13 @@ const Index = () => {
           </div>
 
           {/* AI Features Highlight */}
-          <div className={`${glassmorphism.card.base} ${glassmorphism.card.hover} mt-12 p-6 w-full`}>
+          <div className={`${glassmorphism.card.base} ${glassmorphism.card.hover} mt-12 p-6 w-full animate-slideUp`}>
             <div className="flex items-center gap-3 mb-4">
-              <Sparkles className="w-5 h-5 text-primary" />
+              <Sparkles className="w-5 h-5 text-primary animate-pulse" />
               <h3 className="font-semibold">AI-Powered Features</h3>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="flex items-start gap-3">
+              <div className="flex items-start gap-3 hover-lift">
                 <div className={`${glassmorphism.badge.primary} p-2`}>
                   <Code className="w-4 h-4" />
                 </div>
@@ -91,7 +91,7 @@ const Index = () => {
                   </p>
                 </div>
               </div>
-              <div className="flex items-start gap-3">
+              <div className="flex items-start gap-3 hover-lift">
                 <div className={`${glassmorphism.badge.primary} p-2`}>
                   <BookOpen className="w-4 h-4" />
                 </div>
@@ -108,7 +108,7 @@ const Index = () => {
       </div>
 
       <footer className="mt-auto border-t border-gitpeek-border py-4">
-        <div className="container text-center text-muted-foreground text-sm">
+        <div className="container text-center text-muted-foreground text-sm animate-fadeIn">
           Gitpeek &copy; 2025 | Developer-focused GitHub repository analyzer
         </div>
       </footer>

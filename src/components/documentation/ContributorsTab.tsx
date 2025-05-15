@@ -224,19 +224,21 @@ export function ContributorsTab({ contributors, isLoading }: ContributorsTabProp
                             transform: `translateY(${virtualRow.start}px)`,
                           }}
                         >
-                          <TableCell className="font-medium">
-                            <div className="flex items-center">
+                          <TableCell className="font-medium w-[40%]">
+                            <div className="flex items-center gap-2">
                               <img
                                 src={contributor.avatar_url}
                                 alt={contributor.login}
-                                className="w-6 h-6 rounded-full mr-2"
+                                className="w-6 h-6 rounded-full"
                                 loading="lazy"
                               />
-                              {contributor.login}
+                              <span>{contributor.login}</span>
                             </div>
                           </TableCell>
-                          <TableCell>{contributor.contributions}</TableCell>
-                          <TableCell>
+                          <TableCell className="w-[30%] text-center">
+                            {contributor.contributions.toLocaleString()}
+                          </TableCell>
+                          <TableCell className="w-[30%] text-center">
                             {Math.round((contributor.contributions / stats?.totalContributions) * 100)}%
                           </TableCell>
                         </TableRow>

@@ -74,7 +74,7 @@ const LoadingPage = () => {
   if (isVerifying) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gitpeek-dark">
-        <div className="relative">
+        <div className="relative animate-pulse">
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="w-16 h-16 border-4 border-gitpeek-blue/20 rounded-full animate-pulse"></div>
           </div>
@@ -88,7 +88,7 @@ const LoadingPage = () => {
     <div className="min-h-screen flex flex-col">
       <header className="w-full flex justify-center py-4">
         <div 
-          className="cursor-pointer" 
+          className="cursor-pointer hover-scale transition-all duration-300" 
           onClick={() => navigate("/")}
         >
           <Logo />
@@ -96,30 +96,30 @@ const LoadingPage = () => {
       </header>
 
       <main className="flex-1 flex flex-col items-center justify-center gap-8">
-        <div className="w-full max-w-2xl">
+        <div className="w-full max-w-2xl animate-slideUp">
           <div className="relative h-2 bg-gitpeek-blue/20 rounded-full overflow-hidden">
             <div 
               className="absolute top-0 left-0 h-full bg-gitpeek-blue transition-all duration-300 ease-out"
               style={{ width: `${progress}%` }}
             />
           </div>
-          <div className="mt-4 text-center text-gitpeek-blue/80">
+          <div className="mt-4 text-center text-gitpeek-blue/80 animate-fadeIn">
             Analyzing repository structure and generating insights...
           </div>
         </div>
 
-        <div className="w-full max-w-2xl">
+        <div className="w-full max-w-2xl animate-slideUp" style={{ animationDelay: '200ms' }}>
           <AgentChat 
             owner={owner || ""} 
             repo={repo || ""} 
             progress={progress}
-            maxMessages={6} // Limit to 6 messages
+            maxMessages={6}
           />
         </div>
       </main>
 
       <footer className="mt-auto border-t border-gitpeek-border py-4">
-        <div className="container text-center text-muted-foreground text-sm">
+        <div className="container text-center text-muted-foreground text-sm animate-fadeIn">
           Gitpeek &copy; 2025 | Developer-focused GitHub repository analyzer
         </div>
       </footer>

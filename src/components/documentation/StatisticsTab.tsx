@@ -78,25 +78,11 @@ export function StatisticsTab({ stats, languages, repoData, isLoading }: Statist
     );
   }, [stats?.codeFrequency]);
 
-  if (isLoading) {
+  if (isLoading || !stats || !repoData) {
     return (
-      <div className="space-y-6 animate-pulse">
-        <div className="h-8 bg-muted/20 backdrop-blur-sm rounded-lg w-1/3"></div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="h-60 bg-muted/20 backdrop-blur-sm rounded-lg"></div>
-          <div className="h-60 bg-muted/20 backdrop-blur-sm rounded-lg"></div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!stats || !repoData) {
-    return (
-      <div className="p-6 rounded-lg bg-background/50 backdrop-blur-sm border border-border/50">
-        <h2 className="text-2xl font-bold">Repository Statistics</h2>
-        <p className="text-muted-foreground mt-2">
-          No statistics data available. Please ensure the repository is accessible.
-        </p>
+      <div className="flex flex-col items-center justify-center py-12 animate-fadeIn">
+        <div className="loading-spin rounded-full border-4 border-primary/20 border-t-primary w-12 h-12 mb-4"></div>
+        <div className="text-lg font-semibold text-primary mb-2">Just a sec... Making things readable for you!</div>
       </div>
     );
   }
