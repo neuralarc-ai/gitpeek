@@ -23,7 +23,7 @@ const ResultsPage = () => {
   });
   
   return (
-    <div className="flex flex-col">
+    <div className="min-h-screen flex flex-col">
       <header className="w-full border-b border-gitpeek-border">
         <div className="container py-4 flex justify-center">
           <div 
@@ -35,7 +35,7 @@ const ResultsPage = () => {
         </div>
       </header>
       
-      <main className="h-full flex flex-col min-h-[calc(100vh-500px)] container py-6 space-y-6 items-center justify-center">
+      <main className="flex-1 container py-6 space-y-6">
         <RepositoryHeader 
           repoName={repo} 
           repoOwner={owner} 
@@ -49,7 +49,6 @@ const ResultsPage = () => {
           onAnalysisUpdate={setAnalysis}
         />
       </main>
-      
 
       {/* Global AI Assistant */}
       <AIRepositoryAssistant 
@@ -62,11 +61,12 @@ const ResultsPage = () => {
           children: []
         }}
       />
-          <footer className="border-t border-gitpeek-border py-4">
-            <div className="container text-center text-muted-foreground text-sm">
-              Gitpeek &copy; 2025 | Developer-focused GitHub repository analyzer
-            </div>
-          </footer>
+      
+      <footer className="mt-auto border-t border-gitpeek-border py-4">
+        <div className="container text-center text-muted-foreground text-sm">
+          Gitpeek &copy; 2025 | Developer-focused GitHub repository analyzer
+        </div>
+      </footer>
     </div>
   );
 };

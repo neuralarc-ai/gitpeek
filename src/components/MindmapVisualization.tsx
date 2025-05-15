@@ -160,8 +160,8 @@ export const MindmapVisualization = ({ fileTree }: MindmapVisualizationProps) =>
   }
 
   // Calculate dimensions based on container size
-  const containerWidth = 630;
-  const containerHeight = 450;
+  const containerWidth = 605;
+  const containerHeight = 340;
 
   return (
     <div className="w-full h-full flex items-center justify-center">

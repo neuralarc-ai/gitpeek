@@ -4,7 +4,11 @@ import { Progress } from "@/components/ui/progress";
 import { RepoData, RepoLanguages, RepoStats } from "@/services/githubService";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend, LineChart, Line, PieChart, Pie, Cell, Area, AreaChart, CartesianGrid } from "recharts";
 import { CalendarDays, GitBranch, GitPullRequest, Star } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState, useEffect, lazy, Suspense } from "react";
+
+// Lazy load chart components
+const LanguageChart = lazy(() => import('./charts/LanguageChart'));
+const CommitActivityChart = lazy(() => import('./charts/CommitActivityChart'));
 
 interface StatisticsTabProps {
   stats: RepoStats | null;
@@ -14,6 +18,66 @@ interface StatisticsTabProps {
 }
 
 export function StatisticsTab({ stats, languages, repoData, isLoading }: StatisticsTabProps) {
+  // Memoize language data
+  const languageData = useMemo(() => {
+    if (!languages || Object.keys(languages).length === 0) return [];
+    
+    const total = Object.values(languages).reduce((sum, value) => sum + value, 0);
+    
+    return Object.entries(languages)
+      .map(([name, value]) => ({
+        name,
+        value,
+        percentage: Math.round((value / total) * 100)
+      }))
+      .sort((a, b) => b.value - a.value);
+  }, [languages]);
+  
+  // Memoize commit activity data
+  const commitActivityData = useMemo(() => {
+    if (!stats?.commitActivity || !Array.isArray(stats.commitActivity)) {
+      return Array(12).fill(0).map((_, i) => ({
+        week: `Week ${i + 1}`,
+        commits: 0
+      }));
+    }
+    
+    return stats.commitActivity
+      .slice(-12)
+      .map((week, index) => ({
+        week: `Week ${index + 1}`,
+        commits: week?.total || 0
+      }));
+  }, [stats?.commitActivity]);
+  
+  // Memoize total commits
+  const totalCommits = useMemo(() => 
+    Array.isArray(stats?.commitActivity) 
+      ? stats.commitActivity.reduce((sum, week) => sum + (week?.total || 0), 0)
+      : 0
+  , [stats?.commitActivity]);
+  
+  // Memoize code changes
+  const codeChanges = useMemo(() => {
+    if (!stats?.codeFrequency || !Array.isArray(stats.codeFrequency)) {
+      return { additions: 0, deletions: 0 };
+    }
+    
+    return stats.codeFrequency.reduce(
+      (acc, week) => {
+        if (Array.isArray(week) && week.length >= 3) {
+          const [_, add, remove] = week;
+          return { 
+            additions: acc.additions + (add || 0), 
+            deletions: acc.deletions + Math.abs(remove || 0) 
+          };
+        }
+        return acc;
+      }, 
+      { additions: 0, deletions: 0 }
+    );
+  }, [stats?.codeFrequency]);
+
   if (isLoading) {
     return (
       <div className="space-y-6 animate-pulse">
@@ -36,67 +100,7 @@ export function StatisticsTab({ stats, languages, repoData, isLoading }: Statist
       </div>
     );
   }
-  
-  // Memoize expensive calculations
-  const languageData = useMemo(() => {
-    if (!languages || Object.keys(languages).length === 0) return [];
-    
-    const total = Object.values(languages).reduce((sum, value) => sum + value, 0);
-    
-    return Object.entries(languages)
-      .map(([name, value]) => ({
-        name,
-        value,
-        percentage: Math.round((value / total) * 100)
-      }))
-      .sort((a, b) => b.value - a.value);
-  }, [languages]);
-  
-  const commitActivityData = useMemo(() => {
-    if (!stats?.commitActivity || !Array.isArray(stats.commitActivity)) {
-      return Array(12).fill(0).map((_, i) => ({
-        week: `Week ${i + 1}`,
-        commits: 0
-      }));
-    }
-    
-    return stats.commitActivity
-      .slice(-12)
-      .map((week, index) => ({
-        week: `Week ${index + 1}`,
-        commits: week?.total || 0
-      }));
-  }, [stats?.commitActivity]);
-  
-  const totalCommits = useMemo(() => 
-    Array.isArray(stats?.commitActivity) 
-      ? stats.commitActivity.reduce((sum, week) => sum + (week?.total || 0), 0)
-      : 0
-  , [stats?.commitActivity]);
-  
-  const codeChanges = useMemo(() => {
-    if (!stats?.codeFrequency || !Array.isArray(stats.codeFrequency)) {
-      return { additions: 0, deletions: 0 };
-    }
-    
-    return stats.codeFrequency.reduce(
-      (acc, week) => {
-        if (Array.isArray(week) && week.length >= 3) {
-          const [_, add, remove] = week;
-          return { 
-            additions: acc.additions + (add || 0), 
-            deletions: acc.deletions + Math.abs(remove || 0) 
-          };
-        }
-        return acc;
-      }, 
-      { additions: 0, deletions: 0 }
-    );
-  }, [stats?.codeFrequency]);
-  
-  // Colors for the charts
-  const COLORS = ['#3b82f6', '#10b981', '#a855f7', '#f59e0b', '#ef4444', '#6b7280', '#0ea5e9', '#ec4899'];
-  
+
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold">Repository Statistics</h2>
@@ -142,55 +146,9 @@ export function StatisticsTab({ stats, languages, repoData, isLoading }: Statist
           </CardHeader>
           <CardContent>
             <div className="h-[300px] -mx-2">
-              <ChartContainer
-                config={{
-                  value: {
-                    label: "Lines of Code",
-                    theme: {
-                      light: "#3b82f6",
-                      dark: "#60a5fa",
-                    },
-                  },
-                }}
-              >
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart
-                    data={languageData}
-                    margin={{ top: 10, right: 30, left: 0, bottom: 30 }}
-                  >
-                    <defs>
-                      <linearGradient id="languageAreaGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8} />
-                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1} />
-                      </linearGradient>
-                    </defs>
-                    <XAxis 
-                      dataKey="name" 
-                      stroke="#aaa" 
-                      tick={{ fill: '#aaa' }}
-                      axisLine={{ stroke: '#444' }}
-                    />
-                    <YAxis 
-                      stroke="#aaa" 
-                      tick={{ fill: '#aaa' }}
-                      axisLine={{ stroke: '#444' }}
-                    />
-                    <CartesianGrid strokeDasharray="3 3" stroke="#444" opacity={0.3} />
-                    <Tooltip 
-                      content={<ChartTooltipContent />}
-                      cursor={{ fill: 'rgba(59, 130, 246, 0.1)' }}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="value"
-                      stroke="#3b82f6"
-                      strokeWidth={2}
-                      fillOpacity={1}
-                      fill="url(#languageAreaGradient)"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </ChartContainer>
+              <Suspense fallback={<div className="h-full w-full animate-pulse bg-muted/20 rounded-lg" />}>
+                <LanguageChart data={languageData} />
+              </Suspense>
             </div>
           </CardContent>
         </Card>
@@ -203,52 +161,9 @@ export function StatisticsTab({ stats, languages, repoData, isLoading }: Statist
           </CardHeader>
           <CardContent>
             <div className="h-[300px] -mx-2">
-              <ChartContainer
-                config={{
-                  commits: {
-                    label: "Commits",
-                    theme: {
-                      light: "#3b82f6",
-                      dark: "#60a5fa",
-                    },
-                  },
-                }}
-              >
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={commitActivityData} margin={{ top: 10, right: 30, left: 0, bottom: 30 }}>
-                    <defs>
-                      <linearGradient id="commitActivityGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8} />
-                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1} />
-                      </linearGradient>
-                    </defs>
-                    <XAxis 
-                      dataKey="week" 
-                      stroke="#aaa" 
-                      tick={{ fill: '#aaa' }}
-                      axisLine={{ stroke: '#444' }}
-                    />
-                    <YAxis 
-                      stroke="#aaa" 
-                      tick={{ fill: '#aaa' }}
-                      axisLine={{ stroke: '#444' }}
-                    />
-                    <CartesianGrid strokeDasharray="3 3" stroke="#444" opacity={0.3} />
-                    <Tooltip 
-                      content={<ChartTooltipContent />}
-                      cursor={{ fill: 'rgba(59, 130, 246, 0.1)' }}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="commits"
-                      stroke="#3b82f6"
-                      strokeWidth={2}
-                      fillOpacity={1}
-                      fill="url(#commitActivityGradient)"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </ChartContainer>
+              <Suspense fallback={<div className="h-full w-full animate-pulse bg-muted/20 rounded-lg" />}>
+                <CommitActivityChart data={commitActivityData} />
+              </Suspense>
             </div>
           </CardContent>
         </Card>
@@ -277,7 +192,7 @@ export function StatisticsTab({ stats, languages, repoData, isLoading }: Statist
                 <div className="h-full bg-red-500" />
               </Progress>
               
-              <div className="rounded-md bg-muted/20 backdrop-blur-sm p-4">
+              <div>
                 <div className="text-sm font-medium">Code Churn Rate</div>
                 <div className="text-2xl font-bold mt-1">
                   {Math.round((codeChanges.deletions / (codeChanges.additions + 0.1)) * 100)}%
@@ -337,7 +252,7 @@ export function StatisticsTab({ stats, languages, repoData, isLoading }: Statist
                 </div>
               </div>
               
-              <div className="rounded-md bg-muted/20 backdrop-blur-sm p-4 mt-3">
+              <div>
                 <div className="text-sm font-medium">Activity Score</div>
                 <div className="flex items-center mt-2">
                   <Progress 

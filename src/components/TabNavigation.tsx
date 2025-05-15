@@ -83,6 +83,10 @@ const convertToFileTree = (file: any, owner: string, repo: string): FileTree => 
 const fileTreeCache = new Map<string, { data: FileTree; timestamp: number }>();
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
+// Add cache for contributors and stats
+const contributorsCache = new Map<string, { data: any[]; timestamp: number }>();
+const statsCache = new Map<string, { data: any; timestamp: number }>();
+
 export function TabNavigation({ owner, repo, onAnalysisUpdate }: TabNavigationProps) {
   const [activeTab, setActiveTab] = useState("documentation");
   const [fileTree, setFileTree] = useState<FileTree | null>(null);
@@ -151,6 +155,17 @@ export function TabNavigation({ owner, repo, onAnalysisUpdate }: TabNavigationPr
     loadEssentialData();
   }, [owner, repo, navigate]);
 
+  // Optimize data fetching with caching
+  const fetchCachedData = async (cache: Map<string, any>, key: string, fetchFn: () => Promise<any>) => {
+    const cached = cache.get(key);
+    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+      return cached.data;
+    }
+    const data = await fetchFn();
+    cache.set(key, { data, timestamp: Date.now() });
+    return data;
+  };
+
   // Load additional data progressively
   useEffect(() => {
     if (!isLoading && repoData) {
@@ -209,14 +224,18 @@ export function TabNavigation({ owner, repo, onAnalysisUpdate }: TabNavigationPr
             setOverview("Unable to generate repository analysis at this time.");
           }
 
-          // Load contributors and stats in the background
+          // Load contributors and stats with caching
+          const cacheKey = `${owner}/${repo}`;
+          
           Promise.allSettled([
-            fetchRepoContributors(owner, repo).then(data => {
-              if (data) setContributors(data);
-            }),
-            fetchRepoStats(owner, repo).then(data => {
-              if (data) setStats(data);
-            })
+            fetchCachedData(contributorsCache, cacheKey, () => fetchRepoContributors(owner, repo))
+              .then(data => {
+                if (data) setContributors(data);
+              }),
+            fetchCachedData(statsCache, cacheKey, () => fetchRepoStats(owner, repo))
+              .then(data => {
+                if (data) setStats(data);
+              })
           ]).catch(console.error);
 
         } catch (error) {

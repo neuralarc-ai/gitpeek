@@ -4,6 +4,8 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/
 import { Contributor } from "@/services/githubService";
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { Users } from "lucide-react";
+import { useMemo, useState, useEffect } from "react";
+import { useVirtualizer } from '@tanstack/react-virtual';
 
 interface ContributorsTabProps {
   contributors: Contributor[] | null;
@@ -11,6 +13,61 @@ interface ContributorsTabProps {
 }
 
 export function ContributorsTab({ contributors, isLoading }: ContributorsTabProps) {
+  const [parentRef, setParentRef] = useState<HTMLDivElement | null>(null);
+  
+  // Memoize sorted contributors
+  const sortedContributors = useMemo(() => {
+    if (!contributors) return [];
+    return [...contributors].sort((a, b) => b.contributions - a.contributions);
+  }, [contributors]);
+
+  // Memoize contribution data
+  const contributionData = useMemo(() => {
+    if (!sortedContributors.length) return [];
+    
+    const COLORS = ['#3b82f6', '#10b981', '#a855f7', '#f59e0b', '#ef4444', '#6b7280'];
+    const topContributors = sortedContributors.slice(0, 5);
+    const othersContributions = sortedContributors.slice(5).reduce((sum, c) => sum + c.contributions, 0);
+    
+    return [
+      ...topContributors.map((c, index) => ({
+        name: c.login,
+        value: c.contributions,
+        fill: COLORS[index % COLORS.length]
+      })),
+      {
+        name: "Others",
+        value: othersContributions,
+        fill: COLORS[5]
+      }
+    ];
+  }, [sortedContributors]);
+
+  // Memoize statistics
+  const stats = useMemo(() => {
+    if (!sortedContributors.length) return null;
+    
+    const totalContributions = sortedContributors.reduce((sum, c) => sum + c.contributions, 0);
+    const avgContributions = Math.round(totalContributions / sortedContributors.length);
+    const topContributor = sortedContributors[0];
+    const topContributionPercentage = Math.round((topContributor.contributions / totalContributions) * 100);
+    
+    return {
+      totalContributions,
+      avgContributions,
+      topContributor,
+      topContributionPercentage
+    };
+  }, [sortedContributors]);
+
+  // Setup virtualization for the contributors table
+  const rowVirtualizer = useVirtualizer({
+    count: sortedContributors.length,
+    getScrollElement: () => parentRef,
+    estimateSize: () => 40, // Estimated row height
+    overscan: 5
+  });
+
   if (isLoading) {
     return (
       <div className="space-y-6 animate-pulse">
@@ -33,40 +90,7 @@ export function ContributorsTab({ contributors, isLoading }: ContributorsTabProp
       </div>
     );
   }
-  
-  // Sort contributors by contributions (descending)
-  const sortedContributors = [...contributors].sort((a, b) => b.contributions - a.contributions);
-  
-  // Colors for the chart
-  const COLORS = ['#3b82f6', '#10b981', '#a855f7', '#f59e0b', '#ef4444', '#6b7280'];
-  
-  // Prepare data for pie chart
-  const prepareContributionData = () => {
-    const topContributors = sortedContributors.slice(0, 5);
-    const othersContributions = sortedContributors.slice(5).reduce((sum, c) => sum + c.contributions, 0);
-    
-    return [
-      ...topContributors.map((c, index) => ({
-      name: c.login,
-        value: c.contributions,
-        fill: COLORS[index % COLORS.length]
-      })),
-      {
-        name: "Others",
-        value: othersContributions,
-        fill: COLORS[5]
-      }
-    ];
-  };
-  
-  const contributionData = prepareContributionData();
-  
-  // Calculate contribution statistics
-  const totalContributions = sortedContributors.reduce((sum, c) => sum + c.contributions, 0);
-  const avgContributions = Math.round(totalContributions / sortedContributors.length);
-  const topContributor = sortedContributors[0];
-  const topContributionPercentage = Math.round((topContributor.contributions / totalContributions) * 100);
-  
+
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold">Contributors</h2>
@@ -86,10 +110,10 @@ export function ContributorsTab({ contributors, isLoading }: ContributorsTabProp
             <div className="h-[300px]">
               <ChartContainer
                 config={{
-                  value: { color: COLORS[0] }
+                  value: { color: '#3b82f6' }
                 }}
               >
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer>
                   <PieChart>
                     <Pie
                       data={contributionData}
@@ -109,7 +133,7 @@ export function ContributorsTab({ contributors, isLoading }: ContributorsTabProp
                       content={({ active, payload }) => {
                         if (active && payload && payload.length) {
                           const data = payload[0].payload;
-                          const percentage = Math.round((data.value / totalContributions) * 100);
+                          const percentage = Math.round((data.value / stats?.totalContributions) * 100);
                           return (
                             <div className="bg-background border border-border p-2 rounded shadow-lg">
                               <p className="font-medium">{data.name}</p>
@@ -125,14 +149,14 @@ export function ContributorsTab({ contributors, isLoading }: ContributorsTabProp
                         return null;
                       }}
                     />
-                    <Legend 
-                      layout="vertical" 
-                      verticalAlign="middle" 
+                    <Legend
+                      layout="vertical"
+                      verticalAlign="middle"
                       align="right"
-                      formatter={(value, entry) => (
+                      formatter={(value) => (
                         <span className="text-sm">{value}</span>
                       )}
-                        />
+                    />
                   </PieChart>
                 </ResponsiveContainer>
               </ChartContainer>
@@ -145,15 +169,15 @@ export function ContributorsTab({ contributors, isLoading }: ContributorsTabProp
               </div>
               <div className="text-center">
                 <div className="text-sm text-muted-foreground">Total Commits</div>
-                <div className="text-2xl font-bold">{totalContributions}</div>
+                <div className="text-2xl font-bold">{stats?.totalContributions}</div>
               </div>
               <div className="text-center">
                 <div className="text-sm text-muted-foreground">Avg. Commits</div>
-                <div className="text-2xl font-bold">{avgContributions}</div>
+                <div className="text-2xl font-bold">{stats?.avgContributions}</div>
               </div>
               <div className="text-center">
                 <div className="text-sm text-muted-foreground">Top Contributor</div>
-                <div className="text-2xl font-bold">{topContributionPercentage}%</div>
+                <div className="text-2xl font-bold">{stats?.topContributionPercentage}%</div>
               </div>
             </div>
           </CardContent>
@@ -167,7 +191,10 @@ export function ContributorsTab({ contributors, isLoading }: ContributorsTabProp
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="max-h-[320px] overflow-y-auto">
+            <div 
+              ref={setParentRef}
+              className="max-h-[320px] overflow-auto"
+            >
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -177,24 +204,45 @@ export function ContributorsTab({ contributors, isLoading }: ContributorsTabProp
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {sortedContributors.slice(0, 10).map(contributor => (
-                    <TableRow key={contributor.id}>
-                      <TableCell className="font-medium">
-                        <div className="flex items-center">
-                          <img
-                            src={contributor.avatar_url}
-                            alt={contributor.login}
-                            className="w-6 h-6 rounded-full mr-2"
-                          />
-                          {contributor.login}
-                        </div>
-                      </TableCell>
-                      <TableCell>{contributor.contributions}</TableCell>
-                      <TableCell>
-                        {Math.round((contributor.contributions / totalContributions) * 100)}%
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  <div
+                    style={{
+                      height: `${rowVirtualizer.getTotalSize()}px`,
+                      width: '100%',
+                      position: 'relative',
+                    }}
+                  >
+                    {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                      const contributor = sortedContributors[virtualRow.index];
+                      return (
+                        <TableRow
+                          key={contributor.id}
+                          style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            transform: `translateY(${virtualRow.start}px)`,
+                          }}
+                        >
+                          <TableCell className="font-medium">
+                            <div className="flex items-center">
+                              <img
+                                src={contributor.avatar_url}
+                                alt={contributor.login}
+                                className="w-6 h-6 rounded-full mr-2"
+                                loading="lazy"
+                              />
+                              {contributor.login}
+                            </div>
+                          </TableCell>
+                          <TableCell>{contributor.contributions}</TableCell>
+                          <TableCell>
+                            {Math.round((contributor.contributions / stats?.totalContributions) * 100)}%
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </div>
                 </TableBody>
               </Table>
             </div>

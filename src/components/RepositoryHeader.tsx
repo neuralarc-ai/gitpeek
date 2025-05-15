@@ -1,6 +1,8 @@
+import React from 'react';
 import { Button } from "@/components/ui/button";
 import { Download, Share2, ExternalLink } from "lucide-react";
 import { toast } from "@/components/ui/sonner";
+import { generateRepositoryAnalysisPDF } from "./RepositoryAnalysis";
 
 interface RepositoryHeaderProps {
   repoName: string;
@@ -11,37 +13,42 @@ interface RepositoryHeaderProps {
     architecture: string | null;
     installation: string | null;
     codeStructure: string | null;
+    languages: Record<string, number>;
+    totalLines: number;
+    commits: number;
+    contributors: number;
+    license: string;
+    description: string;
+    dependencies: Record<string, string>;
   };
 }
 
 export function RepositoryHeader({ repoName, repoOwner, repoUrl, analysis }: RepositoryHeaderProps) {
-  const handleDownload = () => {
-    if (!analysis) return;
+  const handleDownload = async () => {
+    if (!analysis) {
+      toast.error("Analysis data is not available");
+      return;
+    }
     
-    const analysisData = {
-      repository: {
-        name: repoName,
+    try {
+      await generateRepositoryAnalysisPDF({
         owner: repoOwner,
-        url: repoUrl
-      },
-      analysis: {
-        overview: analysis.overview,
-        architecture: analysis.architecture,
-        installation: analysis.installation,
-        codeStructure: analysis.codeStructure
-      },
-      generatedAt: new Date().toISOString()
-    };
-
-    const blob = new Blob([JSON.stringify(analysisData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${repoOwner}-${repoName}-analysis.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+        repo: repoName,
+        data: {
+          languages: analysis.languages || {},
+          totalLines: analysis.totalLines || 0,
+          commits: analysis.commits || 0,
+          contributors: analysis.contributors || 0,
+          license: analysis.license || 'Not specified',
+          description: analysis.description || 'No description available',
+          dependencies: analysis.dependencies || {}
+        }
+      });
+      toast.success("Analysis report downloaded successfully!");
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast.error("Failed to generate analysis report");
+    }
   };
 
   const handleShare = async () => {
