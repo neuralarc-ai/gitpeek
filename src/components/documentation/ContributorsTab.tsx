@@ -70,23 +70,38 @@ export function ContributorsTab({ contributors, isLoading }: ContributorsTabProp
 
   if (isLoading) {
     return (
-      <div className="space-y-6 animate-pulse">
-        <div className="h-8 bg-muted rounded w-1/3"></div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="h-60 bg-muted rounded"></div>
-          <div className="h-60 bg-muted rounded"></div>
-        </div>
+      <div className="flex flex-col items-center justify-center py-12 animate-fadeIn">
+        <div
+          style={{
+            width: '48px',
+            height: '48px',
+            border: '4px solid #2563eb22',
+            borderTop: '4px solid #2563eb',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+            marginBottom: '1rem',
+          }}
+        ></div>
+        <div className="text-lg font-semibold text-primary mb-2">Just a sec... Making things readable for you!</div>
       </div>
     );
   }
 
   if (!contributors || contributors.length === 0) {
     return (
-      <div>
-        <h2 className="text-2xl font-bold">Contributors</h2>
-        <p className="text-muted-foreground mt-2">
-          No contributor data available. Please ensure the repository is accessible.
-        </p>
+      <div className="flex flex-col items-center justify-center py-12 animate-fadeIn">
+        <div
+          style={{
+            width: '48px',
+            height: '48px',
+            border: '4px solid #2563eb22',
+            borderTop: '4px solid #2563eb',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+            marginBottom: '1rem',
+          }}
+        ></div>
+        <div className="text-lg font-semibold text-primary mb-2">Just a sec... Making things readable for you!</div>
       </div>
     );
   }

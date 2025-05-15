@@ -81,7 +81,17 @@ export function StatisticsTab({ stats, languages, repoData, isLoading }: Statist
   if (isLoading || !stats || !repoData) {
     return (
       <div className="flex flex-col items-center justify-center py-12 animate-fadeIn">
-        <div className="loading-spin rounded-full border-4 border-primary/20 border-t-primary w-12 h-12 mb-4"></div>
+        <div
+          style={{
+            width: '48px',
+            height: '48px',
+            border: '4px solid #2563eb22',
+            borderTop: '4px solid #2563eb',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+            marginBottom: '1rem',
+          }}
+        ></div>
         <div className="text-lg font-semibold text-primary mb-2">Just a sec... Making things readable for you!</div>
       </div>
     );
