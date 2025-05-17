@@ -4,6 +4,7 @@ import { RepositoryHeader } from "@/components/RepositoryHeader";
 import { TabNavigation } from "@/components/TabNavigation";
 import { AIRepositoryAssistant } from "@/components/AIRepositoryAssistant";
 import { useState } from "react";
+import { Footer } from "@/components/Footer";
 
 const ResultsPage = () => {
   const [searchParams] = useSearchParams();
@@ -69,9 +70,7 @@ const ResultsPage = () => {
       </div>
       
       <footer className="mt-auto border-t border-gitpeek-border py-4">
-        <div className="container text-center text-muted-foreground text-sm animate-fadeIn">
-          Gitpeek &copy; 2025 | Developer-focused GitHub repository analyzer
-        </div>
+        <Footer />
       </footer>
     </div>
   );

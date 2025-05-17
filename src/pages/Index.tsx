@@ -3,6 +3,7 @@ import { RepoInput } from "@/components/RepoInput";
 import { Button } from "@/components/ui/button";
 import { Github, Star, GitFork, Users, Code, BookOpen, Sparkles } from "lucide-react";
 import { glassmorphism, layout, typography } from "@/styles/design-system";
+import { Footer } from "@/components/Footer";
 
 const Index = () => {
   return (
@@ -108,9 +109,7 @@ const Index = () => {
       </div>
 
       <footer className="mt-auto border-t border-gitpeek-border py-4">
-        <div className="container text-center text-muted-foreground text-sm animate-fadeIn">
-          Gitpeek &copy; 2025 | Developer-focused GitHub repository analyzer
-        </div>
+        <Footer />
       </footer>
     </div>
   );

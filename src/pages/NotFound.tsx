@@ -1,5 +1,6 @@
 import { useLocation } from "react-router-dom";
 import { useEffect } from "react";
+import { Footer } from "../components/Footer";
 
 const NotFound = () => {
   const location = useLocation();
@@ -24,9 +25,7 @@ const NotFound = () => {
       </main>
 
       <footer className="mt-auto border-t border-gitpeek-border py-4">
-        <div className="container text-center text-muted-foreground text-sm">
-          Gitpeek &copy; 2025 | Developer-focused GitHub repository analyzer
-        </div>
+        <Footer />
       </footer>
     </div>
   );

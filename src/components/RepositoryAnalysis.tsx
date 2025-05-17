@@ -48,31 +48,6 @@ async function fetchRepositoryData(owner: string, repo: string): Promise<Reposit
   }
 
   const repoData = await repoResponse.json();
-  
-  // Try to fetch README if description is empty
-  let description = repoData.description;
-  if (!description) {
-    try {
-      const readmeResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/readme`, {
-        headers: {
-          Authorization: `token ${githubApiKey}`,
-          Accept: "application/vnd.github.v3+json"
-        }
-      });
-      
-      if (readmeResponse.ok) {
-        const readmeData = await readmeResponse.json();
-        const readmeContent = atob(readmeData.content);
-        // Extract first paragraph from README
-        const firstParagraph = readmeContent.split('\n\n')[0].replace(/[#*`]/g, '').trim();
-        if (firstParagraph) {
-          description = firstParagraph;
-        }
-      }
-    } catch (error) {
-      console.warn('Could not fetch README:', error);
-    }
-  }
 
   // Fetch languages
   const languagesResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}/languages`, {
@@ -112,7 +87,7 @@ async function fetchRepositoryData(owner: string, repo: string): Promise<Reposit
   }
 
   return {
-    description: description || 'This repository does not have a description on GitHub.',
+    description: repoData.description,
     languages,
     dependencies,
     license: repoData.license?.name || null,
@@ -204,24 +179,9 @@ export const generateRepositoryAnalysisPDF = async ({
     doc.text('Project Description', 20, 20);
     
     doc.setFontSize(12);
-    const descriptionText = repoData.description 
-      ? repoData.description
-      : 'This repository does not have a description on GitHub.';
-    
-    // Split description into multiple lines if it's too long
-    const splitDescription = doc.splitTextToSize(descriptionText, pageWidth - 40);
-    doc.text(splitDescription, 20, 40);
-    
-    // Add repository topics if available
-    if (repoData.topics && repoData.topics.length > 0) {
-      const topicsY = 40 + (splitDescription.length * 7) + 10; // 7 is approximate line height
-      doc.setFontSize(14);
-      doc.text('Repository Topics:', 20, topicsY);
-      doc.setFontSize(12);
-      const topicsText = repoData.topics.join(', ');
-      const splitTopics = doc.splitTextToSize(topicsText, pageWidth - 40);
-      doc.text(splitTopics, 20, topicsY + 10);
-    }
+    doc.text(repoData.description || 'No description available', 20, 40, {
+      maxWidth: pageWidth - 40
+    });
     
     // Folder & File Structure
     doc.addPage();

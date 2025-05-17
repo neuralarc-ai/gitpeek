@@ -6,6 +6,7 @@ import { hasApiKey } from "@/utils/apiKeys";
 import { toast } from "@/components/ui/sonner";
 import { fetchRepoData } from "@/services/githubService";
 import { Terminal, Code, FileText, GitBranch } from "lucide-react";
+import { Footer } from "@/components/Footer";
 
 const LoadingPage = () => {
   const [searchParams] = useSearchParams();
@@ -119,9 +120,7 @@ const LoadingPage = () => {
       </main>
 
       <footer className="mt-auto border-t border-gitpeek-border py-4">
-        <div className="container text-center text-muted-foreground text-sm animate-fadeIn">
-          Gitpeek &copy; 2025 | Developer-focused GitHub repository analyzer
-        </div>
+        <Footer />
       </footer>
     </div>
   );
